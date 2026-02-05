@@ -15,7 +15,7 @@ interface Step3Props {
     mode?: 'create' | 'edit'
 }
 
-type SpecCategory = 'Family' | 'Friends' | 'Company' | 'Romantic'
+type SpecCategory = 'Family' | 'Friends' | 'Company'
 
 const CATEGORIES: { id: SpecCategory; label: string; icon: any; description: string }[] = [
     {
@@ -35,13 +35,7 @@ const CATEGORIES: { id: SpecCategory; label: string; icon: any; description: str
         label: 'Company',
         icon: Briefcase,
         description: 'Work-ready with WiFi and desks.'
-    },
-    {
-        id: 'Romantic',
-        label: 'Romantic',
-        icon: Heart,
-        description: 'Cozy, private, and beautiful views.'
-    },
+    }
 ]
 
 export function Step3Specs({ data, updateData, onBack, onSubmit, isSubmitting, mode = 'create' }: Step3Props) {

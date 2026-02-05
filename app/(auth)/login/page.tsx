@@ -23,17 +23,26 @@ export default function LoginPage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
                 <div className="absolute top-8 left-8">
-                    <div className="flex items-center gap-3">
-                        <Image
-                            src="/images/logo_darlink.png"
-                            alt="DARLINK"
-                            width={50}
-                            height={50}
-                            className={`${isRotating ? 'animate-rotate' : ''}`}
-                        />
-                        <span className="text-2xl font-bold text-white tracking-wide">
-                            DARLINK<span className="text-[#F17720]">.tn</span>
-                        </span>
+                    <div className="flex items-center gap-3 group">
+                        <div className="relative h-12 w-auto">
+                            <Image
+                                src="/images/logo_darlink.png"
+                                alt="DARLINK"
+                                width={48}
+                                height={48}
+                                className={`object-contain drop-shadow-md ${isRotating ? 'animate-rotate' : ''}`}
+                            />
+                        </div>
+                        <div className="flex flex-col justify-center -space-y-1">
+                            <div className="leading-none flex items-baseline">
+                                <span className="font-extrabold text-2xl tracking-tight text-white">DAR</span>
+                                <span className="font-bold text-2xl tracking-tight text-[#F17720]">LINK</span>
+                                <span className="text-sm font-medium ml-0.5 opacity-60 text-white">.tn</span>
+                            </div>
+                            <span className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-80 text-blue-100">
+                                Authentic Tunisian Stays
+                            </span>
+                        </div>
                     </div>
                 </div>
 

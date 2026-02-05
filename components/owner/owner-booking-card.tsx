@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Calendar, Check, X, MessageSquare, Phone } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { BookingConfirmationDialog } from './booking-confirmation-dialog'
 
 interface BookingCardProps {
     booking: any
@@ -17,6 +18,8 @@ export function OwnerBookingCard({ booking }: BookingCardProps) {
     const supabase = createClient()
     const router = useRouter()
     const [isLoading, setIsLoading] = useState(false)
+    const [dialogOpen, setDialogOpen] = useState(false)
+    const [dialogAction, setDialogAction] = useState<'accept' | 'reject'>('accept')
 
     const handleStatusUpdate = async (newStatus: 'confirmed' | 'cancelled') => {
         setIsLoading(true)
@@ -28,13 +31,19 @@ export function OwnerBookingCard({ booking }: BookingCardProps) {
 
             if (error) throw error
 
-            toast.success(`Booking ${newStatus} successfully`)
+            toast.success(`Booking ${newStatus === 'confirmed' ? 'accepted' : 'rejected'} successfully`)
             router.refresh()
         } catch (error: any) {
             toast.error("Failed to update: " + error.message)
+            throw error
         } finally {
             setIsLoading(false)
         }
+    }
+
+    const openDialog = (action: 'accept' | 'reject') => {
+        setDialogAction(action)
+        setDialogOpen(true)
     }
 
     return (
@@ -73,7 +82,7 @@ export function OwnerBookingCard({ booking }: BookingCardProps) {
                         <Button
                             variant="outline"
                             className="bg-red-50 text-red-600 border-red-100 hover:bg-red-100 hover:text-red-700"
-                            onClick={() => handleStatusUpdate('cancelled')}
+                            onClick={() => openDialog('reject')}
                             disabled={isLoading}
                         >
                             <X className="w-4 h-4 mr-2" />
@@ -81,7 +90,7 @@ export function OwnerBookingCard({ booking }: BookingCardProps) {
                         </Button>
                         <Button
                             className="bg-green-600 text-white hover:bg-green-700"
-                            onClick={() => handleStatusUpdate('confirmed')}
+                            onClick={() => openDialog('accept')}
                             disabled={isLoading}
                         >
                             <Check className="w-4 h-4 mr-2" />
@@ -100,6 +109,17 @@ export function OwnerBookingCard({ booking }: BookingCardProps) {
                     </Badge>
                 )}
             </div>
+
+            {/* Confirmation Dialog */}
+            <BookingConfirmationDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                booking={booking}
+                action={dialogAction}
+                onConfirm={async () => {
+                    await handleStatusUpdate(dialogAction === 'accept' ? 'confirmed' : 'cancelled')
+                }}
+            />
         </div>
     )
 }

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { BackgroundAnimation } from "@/components/ui/background-animation";
-import { LanguageSelector } from "@/components/ui/language-selector";
 import { LanguageProvider } from "@/components/providers/language-provider";
 import { UserProvider } from "@/components/providers/user-provider";
 import { Toaster } from "@/components/ui/sonner"
@@ -31,7 +30,6 @@ export default function RootLayout({
         <LanguageProvider>
           <UserProvider>
             <BackgroundAnimation />
-            <LanguageSelector />
             {children}
             <Toaster />
           </UserProvider>

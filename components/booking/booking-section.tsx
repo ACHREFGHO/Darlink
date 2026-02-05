@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { AuthModal } from '@/components/auth/auth-modal'
+import { useLanguage } from '@/components/providers/language-provider'
 
 interface Room {
     id: string
@@ -30,6 +32,7 @@ interface BookingSectionProps {
 export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
     const router = useRouter()
     const supabase = createClient()
+    const { t } = useLanguage()
 
     // Default to first room
     const [selectedRoomId, setSelectedRoomId] = useState<string>(rooms[0]?.id || '')
@@ -38,9 +41,11 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
     const [guests, setGuests] = useState(1)
     const [isLoading, setIsLoading] = useState(false)
     const [disabledDates, setDisabledDates] = useState<Date[]>([])
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
 
     const selectedRoom = rooms.find(r => r.id === selectedRoomId)
     const pricePerNight = selectedRoom?.price_per_night || 0
+    const maxGuests = selectedRoom?.max_guests || 1
 
     // Fetch availability when room changes
     useEffect(() => {
@@ -82,17 +87,16 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
     const serviceFee = totalPrice * 0.1 // 10% fee
 
     const handleReserve = async () => {
-        if (!selectedRoomId) return toast.error("Please select a room")
-        if (!date?.from || !date?.to) return toast.error("Please select check-in and check-out dates")
-        if (!tripPurpose) return toast.error("Please select the purpose of your trip")
+        if (!selectedRoomId) return toast.error(t.booking.selectRoom)
+        if (!date?.from || !date?.to) return toast.error(t.booking.selectDates)
+        if (!tripPurpose) return toast.error(t.booking.selectPurpose)
 
         setIsLoading(true)
 
         // 1. Check Auth
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
-            toast.error("You must be logged in to reserve")
-            router.push('/login?next=/properties/' + propertyId)
+            setIsAuthModalOpen(true)
             setIsLoading(false)
             return
         }
@@ -112,7 +116,7 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
 
         if (countError) {
             console.error(countError)
-            toast.error("System Error: Could not verify availability.")
+            toast.error(t.booking.systemError)
             setIsLoading(false)
             return
         }
@@ -120,12 +124,13 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
         const unitsAvailable = selectedRoom?.units_count || 1
         // If overlapping bookings >= total units, then it's full
         if ((count || 0) >= unitsAvailable) {
-            toast.error("This room is no longer available for these dates.")
+            toast.error(t.booking.notAvailable)
             setIsLoading(false)
             return
         }
 
         try {
+            toast.loading(t.booking.processing)
             // 3. Create Booking Request
             const { error } = await supabase
                 .from('bookings')
@@ -136,19 +141,21 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
                     start_date: startStr,
                     end_date: endStr,
                     total_price: totalPrice + serviceFee,
-                    status: 'pending', // Pending approval
-                    trip_purpose: tripPurpose
+                    trip_purpose: tripPurpose, // Save the trip purpose
+                    status: 'pending' // Pending approval
                 })
 
             if (error) throw error
 
-            toast.success("Request sent! Waiting for host approval.")
+            toast.dismiss()
+            toast.success(t.booking.requestSent)
             setDate(undefined)
             router.push('/bookings')
 
         } catch (error: any) {
             console.error(error)
-            toast.error("Failed: " + error.message)
+            toast.dismiss()
+            toast.error(t.booking.failed + error.message)
         } finally {
             setIsLoading(false)
             console.log("Booking process finished")
@@ -159,7 +166,7 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
         return (
             <Card className="shadow-lg border-2 border-dashed">
                 <CardContent className="pt-6 text-center text-muted-foreground">
-                    No rooms available for booking yet.
+                    {t.booking.noRoomsAvailable}
                 </CardContent>
             </Card>
         )
@@ -173,12 +180,12 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
                 <div className="relative z-10 flex flex-col items-center">
                     <div className="flex items-baseline gap-1">
                         <span className="text-3xl font-extrabold tracking-tight">{pricePerNight} TND</span>
-                        <span className="text-blue-100 font-medium">/ night</span>
+                        <span className="text-blue-100 font-medium">/ {t.booking.night}</span>
                     </div>
                     {/* Units Warning if low */}
                     {selectedRoom && selectedRoom.units_count < 3 && (
                         <span className="text-xs bg-orange-500/20 text-orange-200 px-2 py-0.5 rounded-full mt-2 border border-orange-500/30">
-                            Only {selectedRoom.units_count} left!
+                            {t.booking.onlyLeft.replace('{count}', selectedRoom.units_count.toString())}
                         </span>
                     )}
                 </div>
@@ -188,18 +195,18 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
                 {/* Room Selector */}
                 <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1">
-                        Accommodation
+                        {t.booking.accommodation}
                     </label>
                     <Select value={selectedRoomId} onValueChange={setSelectedRoomId}>
                         <SelectTrigger className="w-full h-12 bg-gray-50 border-gray-200 focus:ring-[#0B3D6F]">
-                            <SelectValue placeholder="Select a room" />
+                            <SelectValue placeholder={t.booking.selectRoomPlaceholder} />
                         </SelectTrigger>
                         <SelectContent>
                             {rooms.map(room => (
                                 <SelectItem key={room.id} value={room.id}>
                                     <div className="flex flex-col text-left py-1">
                                         <span className="font-bold text-gray-900">{room.name}</span>
-                                        <span className="text-xs text-muted-foreground">{room.max_guests} guests • {room.beds} beds</span>
+                                        <span className="text-xs text-muted-foreground">{room.max_guests} {t.booking.guests} • {room.beds} {t.booking.beds}</span>
                                     </div>
                                 </SelectItem>
                             ))}
@@ -209,7 +216,7 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
 
                 {/* Date Picker */}
                 <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Dates</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">{t.booking.dates}</label>
                     <Popover>
                         <PopoverTrigger asChild>
                             <Button
@@ -229,7 +236,7 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
                                         format(date.from, "MMM dd")
                                     )
                                 ) : (
-                                    <span>Check-in - Check-out</span>
+                                    <span>{t.booking.checkIn} - {t.booking.checkOut}</span>
                                 )}
                             </Button>
                         </PopoverTrigger>
@@ -258,30 +265,29 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
 
                 {/* Trip Purpose */}
                 <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Trip Type</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">{t.booking.tripType}</label>
                     <Select value={tripPurpose} onValueChange={setTripPurpose}>
                         <SelectTrigger className="w-full h-12 bg-gray-50 border-gray-200 focus:ring-[#0B3D6F]">
-                            <SelectValue placeholder="Purpose of visit" />
+                            <SelectValue placeholder={t.booking.purpose} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="Family">Family Trip</SelectItem>
-                            <SelectItem value="Friends">Friends Getaway</SelectItem>
-                            <SelectItem value="Company">Business / Work</SelectItem>
-                            <SelectItem value="Romantic">Romantic Stay</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
+                            <SelectItem value="Family">👨‍👩‍👧‍👦 {t.booking.familyTrip}</SelectItem>
+                            <SelectItem value="Friends">🎉 {t.booking.friendsGetaway}</SelectItem>
+                            <SelectItem value="Company">💼 {t.booking.businessWork}</SelectItem>
+                            <SelectItem value="Other">✈️ {t.booking.other}</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
 
                 {/* Guest Count */}
                 <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Guests</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">{t.booking.guests}</label>
                     <div className="flex items-center border border-gray-200 bg-gray-50 rounded-md h-12 px-3 focus-within:ring-2 focus-within:ring-[#0B3D6F] focus-within:ring-offset-1 transition-all">
                         <Users className="w-4 h-4 mr-2 text-[#F17720]" />
                         <input
                             type="number"
                             min="1"
-                            max={selectedRoom?.max_guests || 1}
+                            max={maxGuests}
                             value={guests}
                             onChange={(e) => {
                                 const val = parseInt(e.target.value)
@@ -297,19 +303,19 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
                 {date?.from && date?.to && numberOfNights > 0 && (
                     <div className="bg-blue-50/50 rounded-xl p-4 space-y-3 text-sm border border-blue-100 animate-in slide-in-from-top-2">
                         <div className="flex justify-between">
-                            <span className="text-gray-600">{pricePerNight} TND x {numberOfNights} nights</span>
+                            <span className="text-gray-600">{pricePerNight} TND x {numberOfNights} {t.booking.nights}</span>
                             <span className="font-medium text-gray-900">{totalPrice} TND</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-gray-600 flex items-center gap-1">
-                                Service fee
+                                {t.booking.serviceFee}
                                 <AlertCircle className="w-3 h-3 text-gray-400 cursor-help" />
                             </span>
                             <span className="font-medium text-gray-900">{serviceFee.toFixed(2)} TND</span>
                         </div>
                         <div className="h-px bg-blue-200/50 my-2" />
                         <div className="flex justify-between text-base font-bold text-[#0B3D6F]">
-                            <span>Total</span>
+                            <span>{t.booking.total}</span>
                             <span>{(totalPrice + serviceFee).toFixed(2)} TND</span>
                         </div>
                     </div>
@@ -321,16 +327,25 @@ export function BookingSection({ propertyId, rooms }: BookingSectionProps) {
                     disabled={isLoading || !date?.from || !date?.to}
                 >
                     {isLoading ? (
-                        <span className="flex items-center gap-2">Processing...</span>
+                        <span className="flex items-center gap-2">{t.booking.processing}</span>
                     ) : (
-                        'Request to Book'
+                        t.booking.requestToBook
                     )}
                 </Button>
 
                 <p className="text-center text-xs text-muted-foreground">
-                    You won't be charged yet. The host has 24h to accept.
+                    {t.booking.noCharge}
                 </p>
             </CardContent>
+
+            <AuthModal
+                isOpen={isAuthModalOpen}
+                onOpenChange={setIsAuthModalOpen}
+                onSuccess={() => {
+                    toast.success("Logged in successfully! You can now request to book.")
+                    // relying on user to click book again, preserving their form state
+                }}
+            />
         </Card>
     )
 }

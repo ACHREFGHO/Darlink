@@ -119,7 +119,7 @@ create policy "Owners can manage rooms"
 
 
 -- 4. PROPERTY SPECS (Tags/Categories)
-create type spec_category as enum ('Family', 'Friends', 'Company', 'Romantic');
+create type spec_category as enum ('Family', 'Friends', 'Company');
 
 create table public.property_specs (
   id uuid primary key default uuid_generate_v4(),

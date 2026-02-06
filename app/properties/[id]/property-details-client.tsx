@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { Badge } from "@/components/ui/badge"
 import { BookingSection } from "@/components/booking/booking-section"
@@ -13,6 +13,12 @@ import {
     Wifi, Car, Tv, Utensils, Wind, Monitor, Coffee,
     Waves, Key
 } from 'lucide-react'
+import Map, { Marker } from 'react-map-gl/mapbox'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import { updatePropertyLocation } from '@/app/actions/properties'
+import { MapPicker } from '@/components/ui/map-picker'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 interface PropertyDetailsClientProps {
     property: any
@@ -21,10 +27,50 @@ interface PropertyDetailsClientProps {
     propertyRooms: any[]
     ownerProfile: any
     isFavorited: boolean
+    reviews: any[]
+    ratingInfo: any
 }
 
-export function PropertyDetailsClient({ property, user, propertySpecs, propertyRooms, ownerProfile, isFavorited }: PropertyDetailsClientProps) {
+import { useRouter } from 'next/navigation'
+import { PropertyReviews } from '@/components/properties/property-reviews'
+
+export function PropertyDetailsClient({ property, user, propertySpecs, propertyRooms, ownerProfile, isFavorited, reviews, ratingInfo }: PropertyDetailsClientProps) {
     const { t } = useLanguage()
+    const router = useRouter()
+
+    // Safety check: track view
+    React.useEffect(() => {
+        if (user?.id !== property.owner_id) {
+            import('@/app/actions/properties').then(m => m.trackPropertyView(property.id, user?.id))
+        }
+    }, [property.id, user?.id, property.owner_id])
+
+    // Ownership check
+    const isOwner = user?.id === property.owner_id
+
+    // Location State
+    const [isEditingLocation, setIsEditingLocation] = useState(false)
+    const [location, setLocation] = useState<{ lat?: number; lng?: number }>({
+        lat: property.latitude,
+        lng: property.longitude
+    })
+
+    const handleUpdateLocation = async () => {
+        if (!location.lat || !location.lng) {
+            toast.error("Please select a location on the map")
+            return
+        }
+
+        const res = await updatePropertyLocation(property.id, location.lat, location.lng)
+
+        if (res.success) {
+            toast.success("Location updated successfully")
+            setIsEditingLocation(false)
+            router.refresh()
+        } else {
+            toast.error("Failed to update location")
+        }
+    }
 
     // Helper to get amenities icon
     const getAmenityIcon = (name: string) => {
@@ -307,9 +353,78 @@ export function PropertyDetailsClient({ property, user, propertySpecs, propertyR
                             )}
                         </div>
 
-                        <Separator className="bg-gray-100" />
 
-                        {/* Mock Calendar / Availability Preview usually goes here */}
+                        {/* Location / Map Section */}
+                        <div className="py-2">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-2xl font-bold text-[#0B3D6F]">{t.property.location || "Where you'll be"}</h2>
+                                {isOwner && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setIsEditingLocation(!isEditingLocation)}
+                                        className="text-[#F17720] border-[#F17720] hover:bg-orange-50"
+                                    >
+                                        {isEditingLocation ? 'Cancel' : (property.latitude ? 'Edit Location' : 'Add Location')}
+                                    </Button>
+                                )}
+                            </div>
+
+                            <div className="h-[400px] w-full rounded-2xl overflow-hidden border border-gray-200 relative bg-slate-50 shadow-sm">
+                                {(property.latitude && property.longitude && !isEditingLocation) ? (
+                                    <Map
+                                        initialViewState={{
+                                            latitude: property.latitude,
+                                            longitude: property.longitude,
+                                            zoom: 13
+                                        }}
+                                        style={{ width: '100%', height: '100%' }}
+                                        mapStyle="mapbox://styles/mapbox/streets-v12"
+                                        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+                                    >
+                                        <Marker longitude={property.longitude} latitude={property.latitude} anchor="bottom">
+                                            <div className="bg-white p-2 rounded-full shadow-lg">
+                                                <MapPin className="w-8 h-8 text-[#F17720] fill-[#F17720]" />
+                                            </div>
+                                        </Marker>
+                                    </Map>
+                                ) : (
+                                    (isEditingLocation || (!property.latitude && isOwner)) ? (
+                                        <div className="relative h-full w-full">
+                                            <MapPicker
+                                                latitude={location.lat}
+                                                longitude={location.lng}
+                                                onLocationSelect={(lat, lng) => setLocation({ lat, lng })}
+                                                height="100%"
+                                            />
+                                            {isEditingLocation && (
+                                                <div className="absolute top-4 right-4 z-10 bg-white/90 p-2 rounded-xl border shadow-lg backdrop-blur-sm">
+                                                    <p className="text-xs font-bold text-slate-600 mb-2 px-1">Adjust pin to exact location</p>
+                                                    <Button onClick={handleUpdateLocation} size="sm" className="w-full bg-[#0B3D6F] text-white hover:bg-[#092d52]">
+                                                        Save Location
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col h-full items-center justify-center text-slate-400 bg-slate-50">
+                                            <MapPin className="w-12 h-12 mb-2 opacity-20" />
+                                            <p>Location information not available</p>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Reviews Section */}
+                        <PropertyReviews
+                            propertyId={property.id}
+                            reviews={reviews}
+                            ratingInfo={ratingInfo}
+                            userId={user?.id}
+                        />
+
+                        <Separator className="bg-gray-100" />
 
                     </div>
 
@@ -324,6 +439,7 @@ export function PropertyDetailsClient({ property, user, propertySpecs, propertyR
                                     <BookingSection
                                         propertyId={property.id}
                                         rooms={propertyRooms}
+                                        propertyType={property.type}
                                     />
                                 </div>
                             </div>

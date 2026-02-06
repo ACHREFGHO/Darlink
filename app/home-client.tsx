@@ -1,13 +1,15 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react' // Fixed: Added React back
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SearchBar } from '@/components/site/search-bar'
 import { PropertyCardListing } from '@/components/properties/property-card-listing'
-import { Search, ArrowRight, Twitter, Facebook, Instagram, Linkedin, Mail, Phone, MapPin } from 'lucide-react'
+import { Search, ArrowRight, LayoutGrid, Map as MapIcon, Mail, Phone, MapPin } from 'lucide-react' // Fixed: Added LayoutGrid, aliased Map
 import { Navbar } from '@/components/site/navbar'
 import { useLanguage } from '@/components/providers/language-provider'
+import { cn } from '@/lib/utils' // Fixed: Added cn
+import { MapView } from '@/components/site/map-view' // Fixed: Added MapView
 
 interface HomeClientProps {
     properties: any[]
@@ -18,6 +20,25 @@ interface HomeClientProps {
 
 export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClientProps) {
     const { t } = useLanguage()
+    const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
+    const [showFloatingButton, setShowFloatingButton] = useState(true)
+    const [mapBounds, setMapBounds] = useState<{ sw: [number, number], ne: [number, number] } | null>(null)
+
+
+
+    // Filter properties based on map bounds
+    const filteredProperties = React.useMemo(() => {
+        if (!mapBounds) return properties
+
+        return properties.filter(property => {
+            if (!property.latitude || !property.longitude) return false
+
+            const isWithinLat = property.latitude >= mapBounds.sw[1] && property.latitude <= mapBounds.ne[1]
+            const isWithinLng = property.longitude >= mapBounds.sw[0] && property.longitude <= mapBounds.ne[0]
+
+            return isWithinLat && isWithinLng
+        })
+    }, [properties, mapBounds, viewMode])
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -64,37 +85,105 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
                                 <h2 className="text-3xl md:text-4xl font-bold text-[#0B3D6F]">{t.home.featuredTitle}</h2>
                                 <p className="text-muted-foreground mt-2 text-lg">{t.home.featuredSubtitle}</p>
                             </div>
-                            <Link href="/search" className="hidden md:flex items-center text-[#F17720] font-semibold hover:gap-2 transition-all">
-                                {t.home.viewAll} <ArrowRight className="ml-1 w-4 h-4" />
-                            </Link>
+                            <div className="flex items-center gap-4">
+                                <Link href="/search" className="hidden md:flex items-center text-[#F17720] font-semibold hover:gap-2 transition-all">
+                                    {t.home.viewAll} <ArrowRight className="ml-1 w-4 h-4" />
+                                </Link>
+                            </div>
                         </div>
 
-                        {properties && properties.length > 0 ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                                {properties.map((property, index) => (
-                                    <PropertyCardListing
-                                        key={property.id}
-                                        property={property}
-                                        index={index}
-                                        isFavorited={favoriteIds.includes(property.id)}
-                                        userId={user?.id}
+                        {viewMode === 'map' ? (
+                            <div className="animate-in fade-in zoom-in-95 duration-500 relative -mx-4 md:-mx-6 lg:-mx-12">
+                                <div className="absolute top-8 left-1/2 -translate-x-1/2 z-30 w-full max-w-xs px-4">
+                                    <div className="bg-white/80 backdrop-blur-2xl px-6 py-3.5 rounded-[2rem] shadow-[0_15px_40px_-10px_rgba(0,0,0,0.2)] flex items-center justify-center gap-3.5 border border-white/40 group/badge hover:scale-105 transition-all duration-500">
+                                        <div className="relative flex items-center justify-center h-5 w-5">
+                                            <div className="absolute h-full w-full bg-emerald-500/20 rounded-full animate-ping" />
+                                            <div className="h-2.5 w-2.5 bg-emerald-500 rounded-full shadow-[0_0_12px_rgba(16,185,129,0.6)]" />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0B3D6F]/50 leading-none mb-0.5">
+                                                Marketplace Active
+                                            </span>
+                                            <span className="text-sm font-black text-[#0B3D6F] tracking-tight whitespace-nowrap">
+                                                {filteredProperties.length} {filteredProperties.length === 1 ? 'Stay' : 'Stays'} available now
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="px-4 md:px-6 lg:px-12 h-[780px] min-h-[600px] w-full relative">
+                                    {/* Globe Branded Overlay: Only visible in globe mode */}
+                                    <div className="absolute inset-0 z-20 pointer-events-none rounded-[3rem] overflow-hidden opacity-30 bg-[radial-gradient(circle_at_center,transparent_40%,#0B3D6F_100%)] mix-blend-multiply" />
+
+                                    <MapView
+                                        properties={properties}
+                                        onBoundsChange={setMapBounds}
+                                        projection="globe"
                                     />
-                                ))}
+                                </div>
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center py-32 bg-white rounded-3xl border border-dashed border-gray-200 text-center">
-                                <div className="bg-[#F17720]/10 p-4 rounded-full mb-4">
-                                    <Search className="w-8 h-8 text-[#F17720]" />
+                            filteredProperties && filteredProperties.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 animate-in fade-in slide-in-from-bottom-5 duration-500">
+                                    {filteredProperties.map((property, index) => (
+                                        <PropertyCardListing
+                                            key={property.id}
+                                            property={property}
+                                            index={index}
+                                            isFavorited={favoriteIds.includes(property.id)}
+                                            userId={user?.id}
+                                        />
+                                    ))}
                                 </div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-2">{t.home.noStays}</h3>
-                                <p className="text-muted-foreground max-w-sm mx-auto">
-                                    {t.home.noStaysDesc}
-                                </p>
-                            </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-32 bg-white rounded-3xl border border-dashed border-gray-200 text-center">
+                                    <div className="bg-[#F17720]/10 p-4 rounded-full mb-4">
+                                        <Search className="w-8 h-8 text-[#F17720]" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-gray-900 mb-2">{t.home.noStays}</h3>
+                                    <p className="text-muted-foreground max-w-sm mx-auto">
+                                        {t.home.noStaysDesc}
+                                    </p>
+                                </div>
+                            )
                         )}
                     </div>
                 </section>
             </main>
+
+            {/* Floating View Switcher (Strategic Placement) */}
+            <div className={cn(
+                "fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 transform",
+                showFloatingButton ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-20 scale-90 pointer-events-none"
+            )}>
+                <button
+                    onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+                    className="group relative flex items-center gap-3 px-6 py-4 bg-[#0B3D6F] text-white rounded-full shadow-[0_20px_50px_rgba(11,61,111,0.3)] hover:shadow-[0_25px_60px_rgba(11,61,111,0.4)] transition-all duration-500 hover:scale-110 active:scale-95 border border-white/20 backdrop-blur-md"
+                >
+                    {/* Background glow effect */}
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                    <div className="relative flex items-center gap-3">
+                        {viewMode === 'list' ? (
+                            <>
+                                <span className="font-bold tracking-wide text-sm">{t.home.viewMap || "Show Map"}</span>
+                                <div className="p-1.5 bg-white/10 rounded-lg group-hover:bg-[#F17720] transition-colors duration-300">
+                                    <MapIcon className="w-5 h-5" />
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <span className="font-bold tracking-wide text-sm">{t.home.viewList || "Show List"}</span>
+                                <div className="p-1.5 bg-white/10 rounded-lg group-hover:bg-[#F17720] transition-colors duration-300">
+                                    <LayoutGrid className="w-5 h-5" />
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Badge/Dot */}
+                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-[#F17720] rounded-full border-2 border-[#0B3D6F] animate-pulse" />
+                </button>
+            </div>
 
             <footer className="w-full bg-[#0B3D6F] text-white py-12">
                 <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">

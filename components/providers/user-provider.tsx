@@ -30,6 +30,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const [supabase] = useState(() => createClient())
 
     useEffect(() => {
+        let mounted = true
+
         const getUser = async () => {
             setIsLoading(true)
             try {
@@ -79,11 +81,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             } catch (error) {
                 console.error('Unexpected error loading user:', error)
             } finally {
-                setIsLoading(false)
+                if (mounted) setIsLoading(false)
             }
         }
 
         getUser()
+
+        // Safety timeout in case Supabase hangs
+        const timeoutId = setTimeout(() => {
+            if (mounted && isLoading) {
+                console.warn("User fetching timed out, forcing loading completion")
+                setIsLoading(false)
+            }
+        }, 8000) // 8 seconds timeout
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             if (session?.user) {
@@ -97,10 +107,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 setUser(null)
                 setProfile(null)
             }
-            setIsLoading(false)
+            if (mounted) setIsLoading(false)
         })
 
         return () => {
+            mounted = false
+            clearTimeout(timeoutId)
             subscription.unsubscribe()
         }
     }, [supabase])

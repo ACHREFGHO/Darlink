@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { DeletePropertyButton } from "@/components/owner/delete-property-button"
 
 export default async function OwnerPropertiesPage() {
     const supabase = await createClient()
@@ -66,7 +67,10 @@ export default async function OwnerPropertiesPage() {
                                     <Button asChild variant="outline" size="sm">
                                         <Link href={`/owner/properties/${property.id}`}>Edit</Link>
                                     </Button>
-                                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">Delete</Button>
+                                    <DeletePropertyButton
+                                        propertyId={property.id}
+                                        propertyTitle={property.title}
+                                    />
                                 </div>
                             </div>
                         </div>

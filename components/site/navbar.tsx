@@ -17,6 +17,7 @@ import { Menu, Globe, User, LogOut, LayoutDashboard, Heart, Briefcase, MapPin, H
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/components/providers/language-provider'
+import { useCurrency, Currency } from '@/components/providers/currency-provider'
 import { AuthModal } from '@/components/auth/auth-modal'
 
 interface NavbarProps {
@@ -32,15 +33,23 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
     const supabase = createClient()
     const router = useRouter()
     const { language, setLanguage, t } = useLanguage()
+    const { currency, setCurrency } = useCurrency()
 
     const languages = [
-        { code: 'en', label: 'English', flag: '��', region: 'GB' },
+        { code: 'en', label: 'English', flag: '��', region: 'EN' },
         { code: 'fr', label: 'Français', flag: '🇫🇷', region: 'FR' },
         { code: 'ar', label: 'العربية', flag: '🇹🇳', region: 'TN' },
         { code: 'it', label: 'Italiano', flag: '🇮🇹', region: 'IT' },
     ]
 
+    const currencies: { code: Currency, label: string, symbol: string }[] = [
+        { code: 'TND', label: 'Tunisian Dinar', symbol: 'DT' },
+        { code: 'EUR', label: 'Euro', symbol: '€' },
+        { code: 'USD', label: 'US Dollar', symbol: '$' },
+    ]
+
     const activeLang = languages.find(l => l.code === language) || languages[0]
+    const activeCurrency = currencies.find(c => c.code === currency) || currencies[0]
 
     useEffect(() => {
         const handleScroll = () => {
@@ -122,7 +131,7 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                     </div>
 
                     {/* Mode Switcher / Host Call to Action */}
-                    {!userRole?.includes('owner') ? (
+                    {!user ? (
                         <Link
                             href="/owner/properties/new"
                             className={cn(
@@ -132,7 +141,7 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                         >
                             {t.navbar.becomeHost}
                         </Link>
-                    ) : (
+                    ) : (userRole === 'house_owner' || userRole === 'admin') && (
                         <Link
                             href="/owner/dashboard"
                             className={cn(
@@ -143,6 +152,34 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                             {t.navbar.switchToHosting}
                         </Link>
                     )}
+
+                    {/* Currency Menu */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <div className={cn(
+                                "h-10 px-3 cursor-pointer transition-colors hidden sm:flex items-center justify-center rounded-full hover:bg-white/10 border",
+                                isTransparent ? "text-white border-white/30" : "text-gray-700 hover:bg-gray-100 border-gray-200"
+                            )}>
+                                <span className="text-xs font-bold tracking-wider">
+                                    {activeCurrency.code}
+                                </span>
+                            </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-white rounded-xl shadow-xl border-gray-100 w-48">
+                            {currencies.map((curr) => (
+                                <DropdownMenuItem
+                                    key={curr.code}
+                                    onClick={() => setCurrency(curr.code)}
+                                    className="cursor-pointer py-3 px-4 font-medium text-gray-700 focus:bg-gray-50 focus:text-black flex items-center justify-between group"
+                                >
+                                    <span className="text-sm">{curr.label}</span>
+                                    <span className="ml-4 px-2 py-0.5 text-xs font-bold bg-gray-100 text-gray-600 rounded group-hover:bg-[#0B3D6F] group-hover:text-white transition-colors">
+                                        {curr.symbol}
+                                    </span>
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
 
                     {/* Language Menu */}
                     <DropdownMenu>

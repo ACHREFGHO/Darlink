@@ -19,6 +19,8 @@ export const translations = {
             viewAll: "View all listings",
             noStays: "No stays found",
             noStaysDesc: "We couldn't find any published properties at the moment. Check back soon for new listings!",
+            viewMap: "Show Map",
+            viewList: "Show List",
         },
         footer: {
             about: "Your trusted marketplace for vacation rentals in Tunisia. We connect you with authentic stays to create unforgettable memories.",
@@ -80,7 +82,17 @@ export const translations = {
             contactHost: "Contact Host",
             noAmenities: "This property hasn't listed specific amenities yet.",
             newListing: "New Listing",
-            photos: "photos"
+            photos: "photos",
+            location: "Where you'll be",
+            reviews: "Reviews",
+            cleanliness: "Cleanliness",
+            accuracy: "Accuracy",
+            communication: "Communication",
+            locationRating: "Location",
+            checkIn: "Check-in",
+            value: "Value",
+            writeReview: "Write a review",
+            noReviews: "No reviews yet. Be the first to share your experience!",
         },
         login: {
             slogan: "Authentic stays. Unforgettable memories.",
@@ -123,6 +135,25 @@ export const translations = {
             updating: "Updating...",
             successMessage: "Password updated successfully. Redirecting to login...",
             secureAccount: "Secure your account"
+        },
+        account: {
+            title: "Account Settings",
+            subtitle: "Manage your personal information and preferences",
+            personalInfo: "Personal Information",
+            fullName: "Full Name",
+            email: "Email Address",
+            phone: "Phone Number",
+            profilePhoto: "Profile Photo",
+            changePhoto: "Change",
+            saveChanges: "Save Changes",
+            saving: "Saving...",
+            updateSuccess: "Profile updated successfully",
+            updateError: "Failed to update profile",
+            role: "Account Role",
+            memberSince: "Member since",
+            security: "Security",
+            dangerZone: "Danger Zone",
+            deleteAccount: "Delete Account",
         }
     },
     fr: {
@@ -154,6 +185,8 @@ export const translations = {
             viewAll: "Voir toutes les annonces",
             noStays: "Aucun séjour trouvé",
             noStaysDesc: "Nous n'avons trouvé aucune propriété publiée pour le moment. Revenez bientôt !",
+            viewMap: "Afficher la Carte",
+            viewList: "Afficher la Liste",
         },
         footer: {
             about: "Votre place de marché de confiance pour les locations de vacances en Tunisie. Nous vous connectons avec des séjours authentiques pour créer des souvenirs inoubliables.",
@@ -215,7 +248,17 @@ export const translations = {
             contactHost: "Contacter l'hôte",
             noAmenities: "Cette propriété n'a pas encore listé d'équipements spécifiques.",
             newListing: "Nouveauté",
-            photos: "photos"
+            photos: "photos",
+            location: "Où vous serez",
+            reviews: "Commentaires",
+            cleanliness: "Propreté",
+            accuracy: "Précision",
+            communication: "Communication",
+            locationRating: "Emplacement",
+            checkIn: "Arrivée",
+            value: "Rapport qualité-prix",
+            writeReview: "Écrire un commentaire",
+            noReviews: "Aucun commentaire pour le moment. Soyez le premier à partager votre expérience !",
         },
         navbar: {
             stays: "Séjours",
@@ -249,6 +292,25 @@ export const translations = {
             updating: "Mise à jour...",
             successMessage: "Mot de passe mis à jour avec succès. Redirection...",
             secureAccount: "Sécurisez votre compte"
+        },
+        account: {
+            title: "Paramètres du compte",
+            subtitle: "Gérez vos informations personnelles et vos préférences",
+            personalInfo: "Informations personnelles",
+            fullName: "Nom complet",
+            email: "Adresse e-mail",
+            phone: "Numéro de téléphone",
+            profilePhoto: "Photo de profil",
+            changePhoto: "Modifier",
+            saveChanges: "Enregistrer les modifications",
+            saving: "Enregistrement...",
+            updateSuccess: "Profil mis à jour avec succès",
+            updateError: "Échec de la mise à jour du profil",
+            role: "Rôle du compte",
+            memberSince: "Membre depuis",
+            security: "Sécurité",
+            dangerZone: "Zone de danger",
+            deleteAccount: "Supprimer le compte",
         }
     },
     ar: {
@@ -280,6 +342,8 @@ export const translations = {
             viewAll: "عرض جميع القوائم",
             noStays: "لم يتم العثور على إقامات",
             noStaysDesc: "لم نتمكن من العثور على أي عقارات منشورة في الوقت الحالي. تحقق مرة أخرى قريبا!",
+            viewMap: "عرض الخريطة",
+            viewList: "عرض القائمة",
         },
         footer: {
             about: "سوقك الموثوق لتأجير العطلات في تونس. نربطك بإقامات أصيلة لصنع ذكريات لا تُنسى.",
@@ -341,7 +405,17 @@ export const translations = {
             contactHost: "تواصل مع المضيف",
             noAmenities: "لم يدرج هذا العقار وسائل راحة محددة بعد.",
             newListing: "قائمة جديدة",
-            photos: "صور"
+            photos: "صور",
+            location: "الموقع",
+            reviews: "التقييمات",
+            cleanliness: "النظافة",
+            accuracy: "الدقة",
+            communication: "التواصل",
+            locationRating: "الموقع",
+            checkIn: "تسجيل الوصول",
+            value: "القيمة",
+            writeReview: "كتابة تقييم",
+            noReviews: "لا توجد تقييمات بعد. كن أول من يشارك تجربته!",
         },
         navbar: {
             stays: "إقامة",
@@ -375,6 +449,25 @@ export const translations = {
             updating: "جاري التحديث...",
             successMessage: "تم تحديث كلمة المرور بنجاح. جاري التوجيه...",
             secureAccount: "تأمين حسابك"
+        },
+        account: {
+            title: "إعدادات الحساب",
+            subtitle: "إدارة معلوماتك الشخصية وتفضيلاتك",
+            personalInfo: "المعلومات الشخصية",
+            fullName: "الاسم الكامل",
+            email: "البريد الإلكتروني",
+            phone: "رقم الهاتف",
+            profilePhoto: "صورة الملف الشخصي",
+            changePhoto: "تغيير",
+            saveChanges: "حفظ التغييرات",
+            saving: "جاري الحفظ...",
+            updateSuccess: "تم تحديث الملف الشخصي بنجاح",
+            updateError: "فشل تحديث الملف الشخصي",
+            role: "دور الحساب",
+            memberSince: "عضو منذ",
+            security: "الأمان",
+            dangerZone: "منطقة الخطر",
+            deleteAccount: "حذف الحساب",
         }
     },
     it: {
@@ -467,7 +560,8 @@ export const translations = {
             contactHost: "Contatta l'Host",
             noAmenities: "Questa proprietà non ha ancora elencato servizi specifici.",
             newListing: "Nuovo annuncio",
-            photos: "foto"
+            photos: "foto",
+            location: "Dove sarai"
         },
         navbar: {
             stays: "Soggiorni",
@@ -501,6 +595,25 @@ export const translations = {
             updating: "Aggiornamento...",
             successMessage: "Password aggiornata con successo. Reindirizzamento...",
             secureAccount: "Proteggi il tuo account"
+        },
+        account: {
+            title: "Impostazioni Account",
+            subtitle: "Gestisci le tue informazioni personali e preferenze",
+            personalInfo: "Informazioni Personali",
+            fullName: "Nome Completo",
+            email: "Indirizzo Email",
+            phone: "Numero di Telefono",
+            profilePhoto: "Foto Profilo",
+            changePhoto: "Cambia",
+            saveChanges: "Salva Modifiche",
+            saving: "Salvataggio...",
+            updateSuccess: "Profilo aggiornato con successo",
+            updateError: "Errore durante l'aggiornamento del profilo",
+            role: "Ruolo Account",
+            memberSince: "Membro dal",
+            security: "Sicurezza",
+            dangerZone: "Zona Pericolo",
+            deleteAccount: "Elimina Account",
         }
     }
 }

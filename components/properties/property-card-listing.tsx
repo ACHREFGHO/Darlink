@@ -4,10 +4,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Heart } from 'lucide-react'
+import { MapPin, Heart, Star } from 'lucide-react'
 import { AuthModal } from '@/components/auth/auth-modal'
 import { toggleFavorite } from '@/app/actions/favorites'
-import { toast } from 'sonner' // Assuming sonner is used, or console.log fallback
+import { toast } from 'sonner'
+import { useCurrency } from '@/components/providers/currency-provider'
+import { cn } from '@/lib/utils'
 
 interface PropertyCardProps {
     property: any
@@ -23,6 +25,11 @@ export function PropertyCardListing({ property, index, isFavorited = false, user
     const [showAuthModal, setShowAuthModal] = useState(false)
     const [isLoadingFav, setIsLoadingFav] = useState(false)
     const intervalRef = useRef<NodeJS.Timeout | null>(null)
+    const { formatPrice } = useCurrency()
+
+    const ratings = property.reviews?.map((r: any) => r.rating) || []
+    const avgRating = ratings.length > 0 ? (ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(1) : null
+    const reviewCount = ratings.length
 
     // Collect all images: Main Image + Gallery Images
     const galleryImages = property.property_images?.map((img: any) => img.image_url) || []
@@ -94,80 +101,100 @@ export function PropertyCardListing({ property, index, isFavorited = false, user
     return (
         <>
             <div
-                className="group relative block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 h-full flex flex-col"
+                className="group relative block bg-white rounded-3xl overflow-hidden shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_30px_60px_-12px_rgba(0,0,0,0.12)] transition-all duration-700 hover:-translate-y-2 h-full flex flex-col border border-slate-50/50"
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
                 {/* Image Container */}
-                <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-200">
+                <div className="aspect-[4/3] w-full overflow-hidden relative bg-slate-100">
                     {/* Clickable Area Link */}
                     <Link href={`/properties/${property.id}`} className="absolute inset-0 z-10" />
 
-                    {/* Favorite Button - z-20 to sit on top of Link */}
+                    {/* Favorite Button */}
                     <button
                         onClick={handleFavoriteClick}
-                        className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/90 transition-all duration-300 group/heart"
+                        className="absolute top-4 right-4 z-20 h-10 w-10 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-md hover:bg-white transition-all duration-500 group/heart border border-white/10"
                     >
                         <Heart
-                            className={`w-5 h-5 transition-colors duration-300 ${isFav ? 'fill-[#F17720] text-[#F17720]' : 'text-white group-hover/heart:text-[#F17720]'}`}
+                            className={cn(
+                                "w-5 h-5 transition-all duration-500",
+                                isFav ? "fill-[#F17720] text-[#F17720] scale-110" : "text-white group-hover/heart:text-[#F17720]"
+                            )}
                         />
                     </button>
 
                     {allImages.length > 0 ? (
                         <>
-                            {allImages.map((src, idx) => (
-                                <img
-                                    key={idx}
-                                    src={src}
-                                    alt={property.title}
-                                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${idx === currentImageIndex ? 'opacity-100' : 'opacity-0'
-                                        }`}
-                                    loading="lazy"
-                                />
-                            ))}
+                            <div className="absolute inset-0 transition-transform duration-1000 group-hover:scale-110">
+                                {allImages.map((src, idx) => (
+                                    <img
+                                        key={idx}
+                                        src={src}
+                                        alt={property.title}
+                                        className={cn(
+                                            "absolute inset-0 w-full h-full object-cover transition-opacity duration-700",
+                                            idx === currentImageIndex ? "opacity-100" : "opacity-0"
+                                        )}
+                                        loading="lazy"
+                                    />
+                                ))}
+                            </div>
 
-                            {isHovered && allImages.length > 1 && (
-                                <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10 px-4 pointer-events-none">
+                            {allImages.length > 1 && (
+                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 transition-opacity duration-500 opacity-0 group-hover:opacity-100">
                                     {allImages.slice(0, 5).map((_, idx) => (
                                         <div
                                             key={idx}
-                                            className={`w-1.5 h-1.5 rounded-full shadow-sm transition-colors ${idx === currentImageIndex ? 'bg-white' : 'bg-white/50'
-                                                }`}
+                                            className={cn(
+                                                "h-1.5 rounded-full shadow-sm transition-all duration-500",
+                                                idx === currentImageIndex ? "w-4 bg-white" : "w-1.5 bg-white/60"
+                                            )}
                                         />
                                     ))}
                                 </div>
                             )}
                         </>
                     ) : (
-                        <div className="flex h-full w-full items-center justify-center text-gray-400 bg-gray-100">
-                            <span className="text-lg font-medium">No Image</span>
+                        <div className="flex h-full w-full items-center justify-center text-slate-300 bg-slate-50">
+                            <span className="text-sm font-black uppercase tracking-widest">No Image</span>
                         </div>
                     )}
 
                     <div className="absolute top-4 left-4 z-10 pointer-events-none">
-                        <Badge className="bg-white/90 text-[#0B3D6F] backdrop-blur-md px-3 py-1 text-xs font-bold uppercase tracking-wide shadow-sm border-0">
+                        <Badge className="bg-white/90 text-[#0B3D6F] backdrop-blur-md px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] shadow-sm border-0 rounded-lg">
                             {property.type}
                         </Badge>
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                 </div>
 
                 {/* Content */}
-                <div className="p-5 space-y-3 flex flex-col flex-1 relative">
+                <div className="p-6 space-y-4 flex flex-col flex-1 relative bg-white">
                     <Link href={`/properties/${property.id}`} className="absolute inset-0 z-0" />
 
-                    <div className="flex justify-between items-start gap-2 relative z-10 pointer-events-none">
-                        <h3 className="font-bold text-xl text-gray-900 line-clamp-1 group-hover:text-[#F17720] transition-colors">
+                    <div className="space-y-1 relative z-10 pointer-events-none">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center text-slate-400 gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-[#F17720]" />
+                                <span className="text-[11px] font-bold tracking-tight">{property.city}, {property.governorate}</span>
+                            </div>
+                            {avgRating ? (
+                                <div className="flex items-center gap-1 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">
+                                    <Star className="w-3 h-3 fill-[#F17720] text-[#F17720]" />
+                                    <span className="text-[10px] font-black text-[#0B3D6F]">{avgRating}</span>
+                                    <span className="text-[9px] text-slate-400 font-bold">({reviewCount})</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                                    <span className="text-[10px] font-black text-[#0B3D6F] uppercase tracking-tighter">NEW</span>
+                                </div>
+                            )}
+                        </div>
+                        <h3 className="font-black text-xl text-[#0B3D6F] leading-tight tracking-tight group-hover:text-[#F17720] transition-colors line-clamp-1">
                             {property.title}
                         </h3>
                     </div>
 
-                    <div className="flex items-center text-gray-500 text-sm relative z-10 pointer-events-none">
-                        <MapPin className="w-4 h-4 mr-1 text-[#F17720]" />
-                        <span className="font-medium">{property.city}, {property.governorate}</span>
-                    </div>
-
-                    <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed flex-1 relative z-10 pointer-events-none">
+                    <p className="text-[13px] text-slate-500 line-clamp-2 leading-relaxed flex-1 font-medium relative z-10 pointer-events-none">
                         {property.description}
                     </p>
 
@@ -178,32 +205,39 @@ export function PropertyCardListing({ property, index, isFavorited = false, user
                                 <Badge
                                     key={idx}
                                     variant="outline"
-                                    className="bg-[#F17720]/5 text-[#F17720] border-[#F17720]/20 text-xs font-medium px-2 py-0.5"
+                                    className="bg-slate-50 text-slate-500 border-slate-100 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md"
                                 >
-                                    {spec.category === 'Family' && '👨‍👩‍👧‍👦 '}
-                                    {spec.category === 'Friends' && '🎉 '}
-                                    {spec.category === 'Company' && '💼 '}
                                     {spec.category}
                                 </Badge>
                             ))}
                         </div>
                     )}
 
-                    <div className="pt-4 mt-2 border-t flex items-center justify-between relative z-10">
-                        <div className="flex-1 pointer-events-none">
-                            <span className="block text-xs text-gray-400">Starting from</span>
-                            {(() => {
-                                const prices = property.rooms?.map((r: any) => r.price_per_night) || []
-                                const minPrice = prices.length > 0 ? Math.min(...prices) : null
-                                return (
-                                    <>
-                                        <span className="font-bold text-lg text-[#0B3D6F]">{minPrice !== null ? minPrice : 'TBD'}</span>
-                                        {minPrice !== null && <span className="text-xs text-gray-500"> / night</span>}
-                                    </>
-                                )
-                            })()}
+                    <div className="pt-5 border-t border-slate-50 flex items-center justify-between relative z-10">
+                        <div className="flex flex-col pointer-events-none">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">From</span>
+                            <div className="flex items-baseline gap-1">
+                                {(() => {
+                                    const prices = property.rooms?.map((r: any) => r.price_per_night) || []
+                                    const minPrice = prices.length > 0 ? Math.min(...prices) : null
+                                    return (
+                                        <>
+                                            <span className="font-black text-2xl text-[#0B3D6F] tracking-tighter">
+                                                {minPrice !== null ? formatPrice(minPrice) : 'TBD'}
+                                            </span>
+                                            {minPrice !== null && (
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">/night</span>
+                                            )}
+                                        </>
+                                    )
+                                })()}
+                            </div>
                         </div>
-                        <Button size="sm" variant="ghost" className="text-[#F17720] hover:text-[#0B3D6F] hover:bg-orange-50 font-bold -mr-2 pointer-events-auto relative z-20" asChild>
+
+                        <Button
+                            className="rounded-xl bg-[#0B3D6F] hover:bg-[#F17720] text-white px-6 h-11 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-blue-900/10 transition-all hover:scale-105 active:scale-95 pointer-events-auto relative z-20"
+                            asChild
+                        >
                             <Link href={`/properties/${property.id}`}>
                                 Details
                             </Link>

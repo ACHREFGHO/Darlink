@@ -4,6 +4,7 @@ import "./globals.css";
 import { BackgroundAnimation } from "@/components/ui/background-animation";
 import { LanguageProvider } from "@/components/providers/language-provider";
 import { UserProvider } from "@/components/providers/user-provider";
+import { CurrencyProvider } from "@/components/providers/currency-provider";
 import { Toaster } from "@/components/ui/sonner"
 
 
@@ -28,11 +29,13 @@ export default function RootLayout({
         className={`${outfit.variable} font-sans antialiased`}
       >
         <LanguageProvider>
-          <UserProvider>
-            <BackgroundAnimation />
-            {children}
-            <Toaster />
-          </UserProvider>
+          <CurrencyProvider>
+            <UserProvider>
+              <BackgroundAnimation />
+              {children}
+              <Toaster />
+            </UserProvider>
+          </CurrencyProvider>
         </LanguageProvider>
       </body>
     </html>

@@ -64,6 +64,20 @@ export default async function PropertyDetailsPage({ params }: PropertyPageProps)
         if (fav) isFavorited = true
     }
 
+    // Fetch Reviews
+    const { data: reviews } = await supabase
+        .from('reviews')
+        .select('*, profiles(full_name, avatar_url)')
+        .eq('property_id', property.id)
+        .order('created_at', { ascending: false })
+
+    // Fetch Average Ratings
+    const { data: ratingInfo } = await supabase
+        .from('property_ratings')
+        .select('*')
+        .eq('property_id', property.id)
+        .single()
+
     return (
         <PropertyDetailsClient
             property={property}
@@ -72,6 +86,8 @@ export default async function PropertyDetailsPage({ params }: PropertyPageProps)
             propertyRooms={rooms || []}
             ownerProfile={ownerProfile}
             isFavorited={isFavorited}
+            reviews={reviews || []}
+            ratingInfo={ratingInfo}
         />
     )
 }

@@ -16,11 +16,39 @@ export function SearchBar() {
 
     const [location, setLocation] = useState(searchParams.get('location') || '')
     const [openLocation, setOpenLocation] = useState(false)
-    const [suggestions, setSuggestions] = useState<string[]>([])
+    // Tunisia Location Data
+    const TUNISIA_LOCATIONS: Record<string, string[]> = {
+        "Tunis": ["Tunis Ville", "La Marsa", "Carthage", "Sidi Bou Said", "Gammarth", "Le Bardo", "La Goulette"],
+        "Ariana": ["Ariana Ville", "Raoued", "Sidi Thabet", "Ettadhamen", "Mnihla"],
+        "Ben Arous": ["Ben Arous", "Ezzahra", "Hammam Lif", "Radès", "Mornag", "Bou Mhel"],
+        "Manouba": ["Manouba", "Den Den", "Mornaguia", "Tebourba"],
+        "Nabeul": ["Nabeul Ville", "Hammamet", "Kelibia", "Korba", "Menzel Temime", "Soliman", "El Haouaria"],
+        "Sousse": ["Sousse Ville", "Kantaoui", "Hammam Sousse", "Akouda", "Kalaâ Kebira", "M'saken"],
+        "Monastir": ["Monastir Ville", "Sahline", "Skanes", "Moknine", "Ksar Hellal", "Jammel"],
+        "Mahdia": ["Mahdia Ville", "Ksour Essef", "Chebba", "El Jem"],
+        "Sfax": ["Sfax Ville", "Sakiet Ezzit", "Sakiet Eddaier", "Thyna", "Kerkennah"],
+        "Bizerte": ["Bizerte Ville", "Menzel Bourguiba", "Ghar El Melh", "Ras Jebel", "Sejnane"],
+        "Beja": ["Beja Ville", "Medjez El Bab", "Teboursouk", "Amdoun"],
+        "Jendouba": ["Jendouba Ville", "Tabarka", "Ain Draham", "Bou Salem"],
+        "Le Kef": ["Le Kef Ville", "Dahmani", "Tajerouine", "Sakiet Sidi Youssef"],
+        "Siliana": ["Siliana Ville", "Bou Arada", "Gaafour", "Makthar"],
+        "Kairouan": ["Kairouan Ville", "Bou Hajla", "Haffouz", "Oueslatia"],
+        "Kasserine": ["Kasserine Ville", "Sbeitla", "Fériana", "Thala"],
+        "Sidi Bouzid": ["Sidi Bouzid Ville", "Regueb", "Menzel Bouzaiane"],
+        "Gabès": ["Gabès Ville", "Matmata", "Mareth", "El Hamma"],
+        "Medenine": ["Medenine Ville", "Djerba Houmt Souk", "Djerba Midoun", "Zarzis", "Ben Guerdane"],
+        "Tataouine": ["Tataouine Ville", "Ghomrassen", "Remada", "Chenini"],
+        "Gafsa": ["Gafsa Ville", "Métlaoui", "Redeyef", "El Ksar"],
+        "Tozeur": ["Tozeur Ville", "Nefta", "Degache", "Tamaghza"],
+        "Kebili": ["Kebili Ville", "Douz", "Souk Lahad"]
+    }
+
     const [date, setDate] = useState<DateRange | undefined>()
     const [guests, setGuests] = useState(parseInt(searchParams.get('guests') || '1'))
     const [propertyType, setPropertyType] = useState(searchParams.get('type') || '')
     const [tripType, setTripType] = useState(searchParams.get('category') || '')
+    const [dynamicSuggestions, setDynamicSuggestions] = useState<any[]>([])
+    const [isSearching, setIsSearching] = useState(false)
 
     const handleSearch = () => {
         const params = new URLSearchParams()
@@ -33,6 +61,44 @@ export function SearchBar() {
 
         router.push(`/?${params.toString()}`)
     }
+
+    const getAllLocations = () => {
+        const list: { name: string, type: 'gov' | 'city', parent?: string }[] = []
+        Object.entries(TUNISIA_LOCATIONS).forEach(([gov, cities]) => {
+            list.push({ name: gov, type: 'gov' })
+            cities.forEach(city => {
+                list.push({ name: `${gov}, ${city}`, type: 'city', parent: gov })
+            })
+        })
+        return list
+    }
+
+    const fetchMapboxSuggestions = async (query: string) => {
+        const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+        if (!token || query.length < 2) {
+            setDynamicSuggestions([])
+            return
+        }
+
+        setIsSearching(true)
+        try {
+            const res = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=tn&types=place,locality,region&limit=5`
+            )
+            const data = await res.json()
+            setDynamicSuggestions(data.features || [])
+        } catch (error) {
+            console.error('Mapbox search error:', error)
+        } finally {
+            setIsSearching(false)
+        }
+    }
+
+    const staticSuggestions = location.length > 0
+        ? getAllLocations().filter(loc =>
+            loc.name.toLowerCase().includes(location.toLowerCase())
+        ).slice(0, 5)
+        : getAllLocations().filter(loc => loc.type === 'gov').slice(0, 10)
 
     return (
         <div className="w-full max-w-5xl mx-auto">
@@ -54,75 +120,83 @@ export function SearchBar() {
                                 onChange={(e) => {
                                     const val = e.target.value
                                     setLocation(val)
-                                    setOpenLocation(true)
-                                    if (val.length > 2) {
-                                        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&countrycodes=tn&limit=5`)
-                                            .then(res => res.json())
-                                            .then(data => {
-                                                if (Array.isArray(data)) {
-                                                    setSuggestions(data.map((item: any) => item.display_name.split(',')[0]))
-                                                }
-                                            })
-                                            .catch(() => { })
-                                    } else {
-                                        setSuggestions([])
-                                    }
+                                    fetchMapboxSuggestions(val)
                                 }}
+                                onFocus={() => setOpenLocation(true)}
                                 placeholder="Where to?"
                                 className="w-full bg-transparent outline-none text-gray-700 font-bold text-sm placeholder:text-gray-400 truncate cursor-pointer"
                                 autoComplete="off"
                             />
                             {/* Mobile Icon */}
                             <div className="absolute right-4 top-1/2 -translate-y-1/2 md:hidden">
-                                <MapPin className="w-5 h-5 text-gray-400" />
+                                <Search className="w-5 h-5 text-gray-400" />
                             </div>
                         </div>
                     </PopoverTrigger>
-                    <PopoverContent className="p-0 w-[300px] sm:w-[350px] shadow-xl rounded-2xl border-0" align="start">
-                        <div className="p-2">
-                            {location.length > 0 && suggestions.length > 0 ? (
-                                <>
-                                    <h4 className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Suggestions</h4>
+                    <PopoverContent className="p-0 w-[300px] sm:w-[350px] shadow-xl rounded-2xl border-0 overflow-hidden" align="start">
+                        <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-2">
+
+                            {/* Mapbox Results (Dynamic) */}
+                            {dynamicSuggestions.length > 0 && (
+                                <div className="mb-2">
+                                    <h4 className="px-4 py-3 text-xs font-semibold text-orange-500 uppercase tracking-wider flex items-center justify-between">
+                                        Map Results
+                                        {isSearching && <span className="animate-pulse">...</span>}
+                                    </h4>
                                     <div className="grid gap-1">
-                                        {suggestions.map((city, idx) => (
+                                        {dynamicSuggestions.map((feature: any) => (
                                             <button
-                                                key={idx}
+                                                key={feature.id}
                                                 onClick={() => {
-                                                    setLocation(city)
+                                                    setLocation(feature.place_name.replace(', Tunisia', ''))
                                                     setOpenLocation(false)
+                                                    setDynamicSuggestions([])
                                                 }}
-                                                className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                                                className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-xl hover:bg-orange-50 transition-colors text-left group"
                                             >
-                                                <div className="bg-gray-100 p-2 rounded-full">
-                                                    <MapPin className="w-4 h-4 text-gray-500" />
+                                                <div className="p-2 rounded-full bg-[#0B3D6F]/5 text-[#0B3D6F] group-hover:bg-[#0B3D6F] group-hover:text-white transition-colors">
+                                                    <MapPin className="w-4 h-4" />
                                                 </div>
-                                                {city}
+                                                <div className="flex flex-col">
+                                                    <span className="truncate max-w-[200px]">{feature.text}</span>
+                                                    <span className="text-[10px] text-gray-400 truncate max-w-[200px]">{feature.place_name}</span>
+                                                </div>
                                             </button>
                                         ))}
                                     </div>
-                                </>
-                            ) : (
-                                <>
-                                    <h4 className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Popular</h4>
-                                    <div className="grid gap-1">
-                                        {["Tunis", "Hammamet", "Sousse", "Djerba", "Kelibia", "Sidi Bou Said"].map((city) => (
-                                            <button
-                                                key={city}
-                                                onClick={() => {
-                                                    setLocation(city)
-                                                    setOpenLocation(false)
-                                                }}
-                                                className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-left"
-                                            >
-                                                <div className="bg-gray-100 p-2 rounded-full">
-                                                    <MapPin className="w-4 h-4 text-gray-500" />
-                                                </div>
-                                                {city}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
+                                    <div className="h-px bg-gray-100 my-2 mx-4" />
+                                </div>
                             )}
+
+                            {/* Static/Suggested Results */}
+                            <h4 className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                {location.length > 0 ? "Darlink Suggested" : "Quick Explore"}
+                            </h4>
+                            <div className="grid gap-1">
+                                {staticSuggestions.map((loc, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => {
+                                            setLocation(loc.name)
+                                            setOpenLocation(false)
+                                            setDynamicSuggestions([])
+                                        }}
+                                        className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-gray-700 rounded-xl hover:bg-orange-50 transition-colors text-left group"
+                                    >
+                                        <div className={cn(
+                                            "p-2 rounded-full transition-colors",
+                                            loc.type === 'gov' ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500 group-hover:bg-orange-100 group-hover:text-orange-600"
+                                        )}>
+                                            <MapPin className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span>{loc.name}</span>
+                                            {loc.type === 'gov' && <span className="text-[10px] text-orange-500 font-bold uppercase tracking-wider">Governorate</span>}
+                                        </div>
+                                        {loc.type === 'gov' && <Check className="ml-auto w-4 h-4 text-orange-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </PopoverContent>
                 </Popover>

@@ -8,8 +8,10 @@ export type PropertyFormData = {
     city: string
     governorate: string
     main_image_url: string
-    images: File[]
-    existing_images?: { id: string, image_url: string }[]
+    latitude?: number
+    longitude?: number
+    images: { file: File, caption: string }[]
+    existing_images?: { id: string, image_url: string, caption?: string }[]
     deleted_image_ids?: string[]
 
     // Step 2

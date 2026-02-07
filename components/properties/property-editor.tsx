@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PropertyFormData } from '@/components/properties/types'
 import { Step1Info } from '@/components/properties/step-1-info'
+import { Step2Location } from '@/components/properties/step-2-location'
 import { Step2Rooms } from '@/components/properties/step-2-rooms'
 import { Step3Specs } from '@/components/properties/step-3-specs'
 import { createClient } from '@/lib/supabase/client'
@@ -29,19 +30,31 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
 
     const handleSave = async (overrideData?: Partial<PropertyFormData>) => {
         setIsSaving(true)
-        // Use the latest data being passed from the step, or fallback to current state
+        console.log("Saving property changes initiated...", { propertyId, overrideData })
+        const toastId = toast.loading("Saving changes to property...")
+
+        // CRITICAL: Merge the very latest override data with existing form state
         const currentData = { ...formData, ...overrideData }
 
         try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) throw new Error('Not authenticated')
+            // Add a safety timeout for the entire operation (30 seconds)
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 30000)
+
+            const { data: { user }, error: authError } = await supabase.auth.getUser()
+            if (authError || !user) throw new Error('Authentication failed. Please refresh and log in again.')
 
             // 1. Upload new images if any
-            const uploadedImageUrls: string[] = []
+            const uploadedImages: { url: string, caption: string }[] = []
             if (currentData.images && currentData.images.length > 0) {
-                for (const file of currentData.images) {
+                const totalNew = currentData.images.length
+                for (let i = 0; i < totalNew; i++) {
+                    const { file, caption } = currentData.images[i]
+                    toast.loading(`Uploading image ${i + 1} of ${totalNew}...`, { id: toastId })
+
                     const fileExt = file.name.split('.').pop()
-                    const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+                    const safeCaption = caption.toLowerCase().replace(/[^a-z0-9]/g, '-')
+                    const fileName = `${user.id}/${Date.now()}-${safeCaption}-${Math.random().toString(36).substring(7)}.${fileExt}`
 
                     const { error: uploadError } = await supabase.storage
                         .from('property-images')
@@ -56,7 +69,7 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
                         .from('property-images')
                         .getPublicUrl(fileName)
 
-                    uploadedImageUrls.push(publicUrl)
+                    uploadedImages.push({ url: publicUrl, caption })
                 }
             }
 
@@ -70,30 +83,19 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
             )
 
             if (!isMainImageAlive) {
-                // If main image was deleted or not found, try to find the first available existing image that is NOT deleted
                 const firstAliveImage = currentData.existing_images?.find(img => !currentData.deleted_image_ids?.includes(img.id))
-
                 if (firstAliveImage) {
                     finalMainImageUrl = firstAliveImage.image_url
-                }
-                // If no existing images left, pick the first new upload
-                else if (uploadedImageUrls.length > 0) {
-                    finalMainImageUrl = uploadedImageUrls[0]
-                }
-                // Else it remains whatever it was (likely broken or empty)
-                else {
+                } else if (uploadedImages.length > 0) {
+                    finalMainImageUrl = uploadedImages[0].url
+                } else {
                     finalMainImageUrl = ''
                 }
-            } else if (uploadedImageUrls.length > 0 && (!currentData.existing_images || currentData.existing_images.length === 0)) {
-                // If we have new images and no existing images
-            }
-
-            // Special case: if we want to force prioritize new images if the property had NO images before?
-            if (!finalMainImageUrl && uploadedImageUrls.length > 0) {
-                finalMainImageUrl = uploadedImageUrls[0]
             }
 
             // Update Property Details
+            console.log("Updating properties table...")
+            toast.loading("Updating property information...", { id: toastId })
             const { error: propError } = await supabase
                 .from('properties')
                 .update({
@@ -103,14 +105,22 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
                     address: currentData.address,
                     city: currentData.city,
                     governorate: currentData.governorate,
-                    main_image_url: finalMainImageUrl
+                    latitude: currentData.latitude,
+                    longitude: currentData.longitude,
+                    main_image_url: finalMainImageUrl,
+                    updated_at: new Date().toISOString()
                 })
                 .eq('id', propertyId)
 
-            if (propError) throw propError
+            if (propError) {
+                console.error("Property update error:", propError)
+                throw new Error(`Property update failed: ${propError.message}`)
+            }
 
             // 3. Handle Deleted Images
             if (currentData.deleted_image_ids && currentData.deleted_image_ids.length > 0) {
+                console.log("Deleting images:", currentData.deleted_image_ids)
+                toast.loading("Cleaning up removed photos...", { id: toastId })
                 await supabase
                     .from('property_images')
                     .delete()
@@ -118,8 +128,9 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
             }
 
             // 4. Insert New Images
-            if (uploadedImageUrls.length > 0) {
-                // Get current max order
+            if (uploadedImages.length > 0) {
+                console.log("Inserting new image records...")
+                toast.loading("Updating photo gallery...", { id: toastId })
                 const { data: existingImgs } = await supabase
                     .from('property_images')
                     .select('display_order')
@@ -129,9 +140,10 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
 
                 let startOrder = (existingImgs?.[0]?.display_order || 0) + 1
 
-                const imagesToInsert = uploadedImageUrls.map((url, index) => ({
+                const imagesToInsert = uploadedImages.map((img, index) => ({
                     property_id: propertyId,
-                    image_url: url,
+                    image_url: img.url,
+                    caption: img.caption,
                     display_order: startOrder + index
                 }))
 
@@ -140,43 +152,71 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
             }
 
             // 5. Update Rooms
-            await supabase.from('rooms').delete().eq('property_id', propertyId)
+            if (currentData.rooms && currentData.rooms.length > 0) {
+                console.log("Refreshing rooms data...")
+                toast.loading("Updating rooms and pricing...", { id: toastId })
+                // IMPORTANT: Clear old rooms
+                const { error: deleteRoomsError } = await supabase.from('rooms').delete().eq('property_id', propertyId)
+                if (deleteRoomsError) throw deleteRoomsError
 
-            if (currentData.rooms.length > 0) {
-                const roomsToInsert = currentData.rooms.map(room => ({
-                    property_id: propertyId,
-                    ...room
-                }))
-                await supabase.from('rooms').insert(roomsToInsert)
+                // Re-insert current rooms (stripping DB internal fields if they exist)
+                const roomsToInsert = currentData.rooms.map(room => {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { id, property_id, created_at, ...roomData } = room as any
+                    return {
+                        property_id: propertyId,
+                        ...roomData
+                    }
+                })
+                const { error: insertRoomsError } = await supabase.from('rooms').insert(roomsToInsert)
+                if (insertRoomsError) throw insertRoomsError
             }
 
             // 6. Update Specs
-            await supabase.from('property_specs').delete().eq('property_id', propertyId)
+            if (currentData.specs) {
+                console.log("Refreshing category tags...")
+                toast.loading("Updating categories...", { id: toastId })
+                await supabase.from('property_specs').delete().eq('property_id', propertyId)
 
-            if (currentData.specs.length > 0) {
-                const specsToInsert = currentData.specs.map(category => ({
-                    property_id: propertyId,
-                    category
-                }))
-                await supabase.from('property_specs').insert(specsToInsert)
+                if (currentData.specs.length > 0) {
+                    const specsToInsert = currentData.specs.map(category => ({
+                        property_id: propertyId,
+                        category
+                    }))
+                    const { error: insertSpecsError } = await supabase.from('property_specs').insert(specsToInsert)
+                    if (insertSpecsError) throw insertSpecsError
+                }
             }
 
-            toast.success('Property updated successfully')
+            // 7. Update Amenities
+            if (currentData.amenities) {
+                console.log("Refreshing amenities...")
+                toast.loading("Updating amenities...", { id: toastId })
+                await supabase.from('property_amenities').delete().eq('property_id', propertyId)
 
-            // Wait a bit to ensure database triggers/indexes catch up if any, though likely not needed for this.
-            // But we must clear the "new images" from the form state so they don't get uploaded again if the user saves again immediately without leaving.
+                if (currentData.amenities.length > 0) {
+                    const amenitiesToInsert = currentData.amenities.map(amenity => ({
+                        property_id: propertyId,
+                        amenity
+                    }))
+                    const { error: insertAmError } = await supabase.from('property_amenities').insert(amenitiesToInsert)
+                    if (insertAmError) throw insertAmError
+                }
+            }
 
-            if (uploadedImageUrls.length > 0) {
-                // Clear the File objects from state, as they are now saved
+            clearTimeout(timeoutId)
+            console.log("Save successful!")
+            toast.success('Property updated successfully', { id: toastId })
+
+            if (uploadedImages.length > 0) {
                 updateData({ images: [] })
-                // We rely on router.refresh() to reload the page and fetch the new "existing_images"
             }
 
             router.refresh()
 
         } catch (error: any) {
             console.error('Error updating property:', error)
-            toast.error(`Error: ${error.message}`)
+            toast.error(`Error: ${error.message}`, { id: toastId })
         } finally {
             setIsSaving(false)
         }
@@ -185,9 +225,10 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
     return (
         <Card className="p-6">
             <Tabs defaultValue="details" value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-3 mb-8">
-                    <TabsTrigger value="details">Details & Photos</TabsTrigger>
-                    <TabsTrigger value="rooms">Rooms & Rates</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-4 mb-8">
+                    <TabsTrigger value="details">Basic Info</TabsTrigger>
+                    <TabsTrigger value="location">Location</TabsTrigger>
+                    <TabsTrigger value="rooms">{formData.type === 'House' ? 'Rooms' : 'Houses'} & Rates</TabsTrigger>
                     <TabsTrigger value="amenities">Amenities</TabsTrigger>
                 </TabsList>
 
@@ -195,10 +236,27 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
                     <Step1Info
                         data={formData}
                         updateData={updateData}
-                        onNext={handleSave}
-                        // @ts-ignore - we haven't added these props yet
+                        onNext={(data) => {
+                            const combined = { ...formData, ...data }
+                            setFormData(combined)
+                            handleSave(combined)
+                        }}
                         mode="edit"
                         isSaving={isSaving}
+                    />
+                </TabsContent>
+
+                <TabsContent value="location">
+                    <Step2Location
+                        data={formData}
+                        updateData={updateData}
+                        onBack={() => setActiveTab('details')}
+                        onNext={(data) => {
+                            const combined = { ...formData, ...data }
+                            setFormData(combined)
+                            handleSave(combined)
+                        }}
+                        mode="edit"
                     />
                 </TabsContent>
 
@@ -206,9 +264,12 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
                     <Step2Rooms
                         data={formData}
                         updateData={updateData}
-                        onNext={handleSave}
-                        onBack={() => setActiveTab('details')}
-                        // @ts-ignore
+                        onNext={(data) => {
+                            const combined = { ...formData, ...data }
+                            setFormData(combined)
+                            handleSave(combined)
+                        }}
+                        onBack={() => setActiveTab('location')}
                         mode="edit"
                         isSaving={isSaving}
                     />
@@ -218,9 +279,12 @@ export function PropertyEditor({ initialData, propertyId }: PropertyEditorProps)
                     <Step3Specs
                         data={formData}
                         updateData={updateData}
-                        onSubmit={handleSave}
+                        onSubmit={(data) => {
+                            const combined = { ...formData, ...data }
+                            setFormData(combined)
+                            handleSave(combined)
+                        }}
                         onBack={() => setActiveTab('rooms')}
-                        // @ts-ignore
                         mode="edit"
                         isSubmitting={isSaving}
                     />

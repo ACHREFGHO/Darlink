@@ -1,15 +1,20 @@
 'use client'
 
-import React, { useState } from 'react' // Fixed: Added React back
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SearchBar } from '@/components/site/search-bar'
 import { PropertyCardListing } from '@/components/properties/property-card-listing'
-import { Search, ArrowRight, LayoutGrid, Map as MapIcon, Mail, Phone, MapPin } from 'lucide-react' // Fixed: Added LayoutGrid, aliased Map
+import { Search, ArrowRight, LayoutGrid, Map as MapIcon, Filter, Wifi, Waves, Car, Wind, Tv, Utensils, Monitor, Coffee } from 'lucide-react'
 import { Navbar } from '@/components/site/navbar'
 import { useLanguage } from '@/components/providers/language-provider'
-import { cn } from '@/lib/utils' // Fixed: Added cn
-import { MapView } from '@/components/site/map-view' // Fixed: Added MapView
+import { cn } from '@/lib/utils'
+import { MapView } from '@/components/site/map-view'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Slider } from "@/components/ui/slider"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Separator } from "@/components/ui/separator"
+import { useCurrency } from '@/components/providers/currency-provider'
 
 interface HomeClientProps {
     properties: any[]
@@ -18,27 +23,60 @@ interface HomeClientProps {
     favoriteIds: string[]
 }
 
+const AMENITIES = [
+    { id: 'wifi', label: 'WiFi', icon: Wifi },
+    { id: 'pool', label: 'Pool', icon: Waves },
+    { id: 'parking', label: 'Parking', icon: Car },
+    { id: 'ac', label: 'A/C', icon: Wind },
+    { id: 'tv', label: 'TV', icon: Tv },
+    { id: 'kitchen', label: 'Kitchen', icon: Utensils },
+    { id: 'workspace', label: 'Work-desk', icon: Monitor },
+    { id: 'coffee', label: 'Coffee', icon: Coffee },
+]
+
 export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClientProps) {
     const { t } = useLanguage()
+    const { formatPrice } = useCurrency()
     const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
     const [showFloatingButton, setShowFloatingButton] = useState(true)
     const [mapBounds, setMapBounds] = useState<{ sw: [number, number], ne: [number, number] } | null>(null)
 
+    // Advanced Filters State
+    const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000])
+    const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
 
-
-    // Filter properties based on map bounds
+    // Filter properties based on all criteria
     const filteredProperties = React.useMemo(() => {
-        if (!mapBounds) return properties
+        let result = properties
 
-        return properties.filter(property => {
-            if (!property.latitude || !property.longitude) return false
+        // 1. Map Bounds Filter
+        if (mapBounds && viewMode === 'map') {
+            result = result.filter(property => {
+                if (!property.latitude || !property.longitude) return false
+                const isWithinLat = property.latitude >= mapBounds.sw[1] && property.latitude <= mapBounds.ne[1]
+                const isWithinLng = property.longitude >= mapBounds.sw[0] && property.longitude <= mapBounds.ne[0]
+                return isWithinLat && isWithinLng
+            })
+        }
 
-            const isWithinLat = property.latitude >= mapBounds.sw[1] && property.latitude <= mapBounds.ne[1]
-            const isWithinLng = property.longitude >= mapBounds.sw[0] && property.longitude <= mapBounds.ne[0]
-
-            return isWithinLat && isWithinLng
+        // 2. Price Range Filter
+        result = result.filter(p => {
+            const prices = p.rooms?.map((r: any) => Number(r.price_per_night)) || []
+            if (prices.length === 0) return true
+            const min = Math.min(...prices)
+            return min >= priceRange[0] && min <= priceRange[1]
         })
-    }, [properties, mapBounds, viewMode])
+
+        // 3. Amenities Filter
+        if (selectedAmenities.length > 0) {
+            result = result.filter(p => {
+                const pAm = p.property_amenities?.map((a: any) => a.amenity) || []
+                return selectedAmenities.every(am => pAm.includes(am))
+            })
+        }
+
+        return result
+    }, [properties, mapBounds, viewMode, priceRange, selectedAmenities])
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -59,7 +97,7 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
                     <div className="container relative z-10 px-4 md:px-6 flex flex-col items-center text-center space-y-8 pt-20">
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-5 duration-1000">
                             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-white drop-shadow-lg whitespace-pre-line">
-                                {t.home.heroTitle.split('\n').map((line, i) => (
+                                {t.home.heroTitle.split('\n').map((line: any, i: number) => (
                                     <React.Fragment key={i}>
                                         {i === 1 ? <span className="text-[#F17720]">{line}</span> : line}
                                         {i === 0 && <br />}
@@ -78,19 +116,114 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
                 </section>
 
                 {/* Featured Properties Grid */}
-                <section className="bg-gray-50 py-20">
+                <section className="bg-gray-50 py-20" id="stays">
                     <div className="container mx-auto px-4 md:px-6">
-                        <div className="flex items-end justify-between mb-12">
+                        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
                             <div>
                                 <h2 className="text-3xl md:text-4xl font-bold text-[#0B3D6F]">{t.home.featuredTitle}</h2>
                                 <p className="text-muted-foreground mt-2 text-lg">{t.home.featuredSubtitle}</p>
                             </div>
-                            <div className="flex items-center gap-4">
+
+                            <div className="flex items-center gap-3">
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" className="rounded-full border-[#0B3D6F]/20 text-[#0B3D6F] hover:bg-slate-100 px-6 h-12 gap-2 shadow-sm whitespace-nowrap">
+                                            <Filter className="w-4 h-4" />
+                                            Filters {(selectedAmenities.length > 0) && `(${selectedAmenities.length})`}
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-2xl rounded-[2rem] overflow-hidden p-8">
+                                        <DialogHeader>
+                                            <DialogTitle className="text-2xl font-black text-[#0B3D6F] mb-6">Advanced Filters</DialogTitle>
+                                        </DialogHeader>
+
+                                        <div className="space-y-10 py-4">
+                                            {/* Price Range */}
+                                            <div className="space-y-6">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="text-lg font-bold text-[#0B3D6F]">Price Range</h3>
+                                                    <div className="bg-slate-50 px-4 py-1.5 rounded-full border border-slate-100">
+                                                        <span className="text-sm font-black text-[#F17720]">{formatPrice(priceRange[0])} - {formatPrice(priceRange[1])}</span>
+                                                    </div>
+                                                </div>
+                                                <Slider
+                                                    defaultValue={[0, 1000]}
+                                                    max={1500}
+                                                    step={10}
+                                                    value={priceRange}
+                                                    onValueChange={(val) => setPriceRange(val as [number, number])}
+                                                    className="py-4"
+                                                />
+                                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    <span>Min</span>
+                                                    <span>Max+</span>
+                                                </div>
+                                            </div>
+
+                                            <Separator className="bg-slate-100" />
+
+                                            {/* Amenities */}
+                                            <div className="space-y-6">
+                                                <h3 className="text-lg font-bold text-[#0B3D6F]">Essentials & Features</h3>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                                    {AMENITIES.map((am) => {
+                                                        const Icon = am.icon
+                                                        const isSelected = selectedAmenities.includes(am.id)
+                                                        return (
+                                                            <div
+                                                                key={am.id}
+                                                                onClick={() => {
+                                                                    setSelectedAmenities(prev =>
+                                                                        prev.includes(am.id)
+                                                                            ? prev.filter(a => a !== am.id)
+                                                                            : [...prev, am.id]
+                                                                    )
+                                                                }}
+                                                                className={cn(
+                                                                    "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all cursor-pointer group hover:scale-105",
+                                                                    isSelected
+                                                                        ? "border-[#F17720] bg-orange-50/50 text-[#F17720]"
+                                                                        : "border-slate-100 bg-white text-slate-500 hover:border-slate-200"
+                                                                )}
+                                                            >
+                                                                <Icon className={cn("w-6 h-6 mb-2 transition-transform group-hover:rotate-6", isSelected && "animate-pulse")} />
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-center">{am.label}</span>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-8 flex items-center justify-between border-t border-slate-100 mt-4">
+                                            <Button
+                                                variant="ghost"
+                                                className="text-slate-400 font-bold hover:text-slate-900"
+                                                onClick={() => {
+                                                    setPriceRange([0, 1000])
+                                                    setSelectedAmenities([])
+                                                }}
+                                            >
+                                                Clear all
+                                            </Button>
+                                            <DialogTrigger asChild>
+                                                <Button
+                                                    className="bg-[#0B3D6F] hover:bg-[#F17720] text-white rounded-full px-8 h-12 font-bold transition-all"
+                                                >
+                                                    Show {filteredProperties.length} Stays
+                                                </Button>
+                                            </DialogTrigger>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+
                                 <Link href="/search" className="hidden md:flex items-center text-[#F17720] font-semibold hover:gap-2 transition-all">
                                     {t.home.viewAll} <ArrowRight className="ml-1 w-4 h-4" />
                                 </Link>
                             </div>
                         </div>
+
+                        <div className="w-full h-px bg-slate-200/60 mb-12" />
 
                         {viewMode === 'map' ? (
                             <div className="animate-in fade-in zoom-in-95 duration-500 relative -mx-4 md:-mx-6 lg:-mx-12">
@@ -111,11 +244,9 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
                                     </div>
                                 </div>
                                 <div className="px-4 md:px-6 lg:px-12 h-[780px] min-h-[600px] w-full relative">
-                                    {/* Globe Branded Overlay: Only visible in globe mode */}
                                     <div className="absolute inset-0 z-20 pointer-events-none rounded-[3rem] overflow-hidden opacity-30 bg-[radial-gradient(circle_at_center,transparent_40%,#0B3D6F_100%)] mix-blend-multiply" />
-
                                     <MapView
-                                        properties={properties}
+                                        properties={filteredProperties}
                                         onBoundsChange={setMapBounds}
                                         projection="globe"
                                     />
@@ -150,7 +281,7 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
                 </section>
             </main>
 
-            {/* Floating View Switcher (Strategic Placement) */}
+            {/* Floating View Switcher */}
             <div className={cn(
                 "fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 transform",
                 showFloatingButton ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-20 scale-90 pointer-events-none"
@@ -159,9 +290,7 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
                     onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
                     className="group relative flex items-center gap-3 px-6 py-4 bg-[#0B3D6F] text-white rounded-full shadow-[0_20px_50px_rgba(11,61,111,0.3)] hover:shadow-[0_25px_60px_rgba(11,61,111,0.4)] transition-all duration-500 hover:scale-110 active:scale-95 border border-white/20 backdrop-blur-md"
                 >
-                    {/* Background glow effect */}
                     <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
                     <div className="relative flex items-center gap-3">
                         {viewMode === 'list' ? (
                             <>
@@ -179,8 +308,6 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
                             </>
                         )}
                     </div>
-
-                    {/* Badge/Dot */}
                     <div className="absolute -top-1 -right-1 h-3 w-3 bg-[#F17720] rounded-full border-2 border-[#0B3D6F] animate-pulse" />
                 </button>
             </div>

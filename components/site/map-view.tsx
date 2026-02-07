@@ -38,20 +38,30 @@ export const MapView = React.memo(function MapView({ properties, onBoundsChange,
     const updateBounds = React.useCallback((map: any) => {
         if (!onBoundsChange) return
 
-        const bounds = map.getBounds()
-        const sw = bounds.getWest()
-        const s = bounds.getSouth()
-        const ne = bounds.getEast()
-        const n = bounds.getNorth()
+        try {
+            const bounds = map.getBounds()
+            const sw = bounds.getWest()
+            const s = bounds.getSouth()
+            const ne = bounds.getEast()
+            const n = bounds.getNorth()
 
-        const boundsKey = `${sw.toFixed(4)},${s.toFixed(4)},${ne.toFixed(4)},${n.toFixed(4)}`
+            // Increase precision slightly but keep it stable
+            const boundsKey = `${sw.toFixed(5)},${s.toFixed(5)},${ne.toFixed(5)},${n.toFixed(5)}`
 
-        if (prevBoundsRef.current !== boundsKey) {
-            prevBoundsRef.current = boundsKey
-            onBoundsChange({
-                sw: [sw, s],
-                ne: [ne, n]
-            })
+            if (prevBoundsRef.current !== boundsKey) {
+                prevBoundsRef.current = boundsKey
+
+                // Use requestAnimationFrame to detach from the current render/event cycle
+                // this prevents "Maximum call stack size exceeded" by breaking the synchronous chain
+                requestAnimationFrame(() => {
+                    onBoundsChange({
+                        sw: [sw, s],
+                        ne: [ne, n]
+                    })
+                })
+            }
+        } catch (e) {
+            console.warn("Map bounds update failed:", e)
         }
     }, [onBoundsChange])
 

@@ -64,14 +64,14 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     }
 
     const formatPrice = (priceInTnd: number) => {
-        const converted = priceInTnd * rates[currency]
+        const converted = Math.round(priceInTnd * rates[currency])
         const symbol = CURRENCY_SYMBOLS[currency]
 
         if (currency === 'TND') {
-            return `${priceInTnd.toLocaleString()} ${symbol}`
+            return `${converted.toLocaleString()} ${symbol}`
         }
 
-        return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        return `${symbol}${converted.toLocaleString()}`
     }
 
     return (

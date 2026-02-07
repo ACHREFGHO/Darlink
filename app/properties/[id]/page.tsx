@@ -52,6 +52,12 @@ export default async function PropertyDetailsPage({ params }: PropertyPageProps)
         .select('*')
         .eq('property_id', property.id)
 
+    // Fetch Amenities
+    const { data: amenities } = await supabase
+        .from('property_amenities')
+        .select('*')
+        .eq('property_id', property.id)
+
     // Check if favorited
     let isFavorited = false
     if (user) {
@@ -78,16 +84,37 @@ export default async function PropertyDetailsPage({ params }: PropertyPageProps)
         .eq('property_id', property.id)
         .single()
 
+    // Check if user has a confirmed booking that hasn't been reviewed yet
+    let canReview = false
+    if (user) {
+        const { data: bookings } = await supabase
+            .from('bookings')
+            .select(`
+                id,
+                reviews (id)
+            `)
+            .eq('user_id', user.id)
+            .eq('property_id', property.id)
+            .eq('status', 'confirmed')
+
+        if (bookings && bookings.length > 0) {
+            // Can review if there is at least one confirmed booking that does NOT have a review yet
+            canReview = bookings.some(b => !b.reviews || (Array.isArray(b.reviews) && b.reviews.length === 0))
+        }
+    }
+
     return (
         <PropertyDetailsClient
             property={property}
             user={user}
             propertySpecs={specs?.[0]}
             propertyRooms={rooms || []}
+            propertyAmenities={amenities || []}
             ownerProfile={ownerProfile}
             isFavorited={isFavorited}
             reviews={reviews || []}
             ratingInfo={ratingInfo}
+            canReview={canReview}
         />
     )
 }

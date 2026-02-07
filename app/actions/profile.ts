@@ -29,5 +29,16 @@ export async function updateProfile(formData: {
     }
 
     revalidatePath('/account')
+
+    // 3. Sync with Auth Metadata (for Navbar/other layouts)
+    if (formData.full_name || formData.avatar_url) {
+        await supabase.auth.updateUser({
+            data: {
+                full_name: formData.full_name,
+                avatar_url: formData.avatar_url
+            }
+        })
+    }
+
     return { success: true }
 }

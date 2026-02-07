@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { format, differenceInDays, addDays, isWithinInterval, parseISO } from 'date-fns'
 import { CalendarIcon, Users, ChevronDown, CheckCircle2, AlertCircle, Hash } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DateRange } from 'react-day-picker'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -30,69 +31,39 @@ interface BookingSectionProps {
     propertyId: string
     rooms: Room[]
     propertyType?: 'House' | 'Apartment' | 'Guesthouse'
+    // Lifted State
+    selectedRoomId: string
+    setSelectedRoomId: (id: string) => void
+    date: DateRange | undefined
+    setDate: (date: DateRange | undefined) => void
+    disabledDates: Date[]
 }
 
-export function BookingSection({ propertyId, rooms, propertyType }: BookingSectionProps) {
+export function BookingSection({
+    propertyId,
+    rooms,
+    propertyType,
+    selectedRoomId,
+    setSelectedRoomId,
+    date,
+    setDate,
+    disabledDates
+}: BookingSectionProps) {
     const router = useRouter()
     const supabase = createClient()
     const { t } = useLanguage()
     const { formatPrice } = useCurrency()
 
-    // Default to first room
-    const [selectedRoomId, setSelectedRoomId] = useState<string>(rooms[0]?.id || '')
-    const [date, setDate] = useState<{ from: Date; to?: Date } | undefined>()
     const [tripPurpose, setTripPurpose] = useState<string>('')
     const [guests, setGuests] = useState(1)
     const [unitsToBook, setUnitsToBook] = useState(1)
     const [isLoading, setIsLoading] = useState(false)
-    const [disabledDates, setDisabledDates] = useState<Date[]>([])
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
 
     const selectedRoom = rooms.find(r => r.id === selectedRoomId)
     const pricePerNight = selectedRoom?.price_per_night || 0
     const maxGuests = selectedRoom?.max_guests || 1
     const unitsAvailable = selectedRoom?.units_count || 1
-
-    // Fetch availability when room changes
-    useEffect(() => {
-        if (!selectedRoomId) return
-
-        const fetchBlockedDates = async () => {
-            const { data, error } = await supabase
-                .from('bookings')
-                .select('start_date, end_date, units_booked')
-                .eq('room_id', selectedRoomId)
-                .neq('status', 'cancelled')
-                .gte('end_date', new Date().toISOString())
-
-            if (data) {
-                // For properties with multiple units, a date is only "blocked" if ALL units are booked
-                // This is a simplified check. A more precise check would sum units per day.
-                const dateMap: Record<string, number> = {}
-                data.forEach((booking: any) => {
-                    let curr = parseISO(booking.start_date)
-                    const end = parseISO(booking.end_date)
-                    const ub = booking.units_booked || 1
-
-                    while (curr < end) {
-                        const dStr = format(curr, 'yyyy-MM-dd')
-                        dateMap[dStr] = (dateMap[dStr] || 0) + ub
-                        curr = addDays(curr, 1)
-                    }
-                })
-
-                const blocked: Date[] = []
-                Object.entries(dateMap).forEach(([dStr, count]) => {
-                    if (count >= unitsAvailable) {
-                        blocked.push(parseISO(dStr))
-                    }
-                })
-                setDisabledDates(blocked)
-            }
-        }
-
-        fetchBlockedDates()
-    }, [selectedRoomId, supabase, unitsAvailable])
 
     const getPriceForDate = (day: Date) => {
         const dayOfWeek = day.getDay()
@@ -166,8 +137,9 @@ export function BookingSection({ propertyId, rooms, propertyType }: BookingSecti
         }
 
         try {
-            toast.loading(t.booking.processing)
-            const { error } = await supabase
+            const loadingToast = toast.loading(t.booking.processing)
+
+            const { error: insertError } = await supabase
                 .from('bookings')
                 .insert({
                     property_id: propertyId,
@@ -181,17 +153,27 @@ export function BookingSection({ propertyId, rooms, propertyType }: BookingSecti
                     units_booked: unitsToBook
                 })
 
-            if (error) throw error
+            toast.dismiss(loadingToast)
 
-            toast.dismiss()
+            if (insertError) {
+                console.error("Booking submission error:", insertError)
+                throw new Error(insertError.message)
+            }
+
             toast.success(t.booking.requestSent)
-            setDate(undefined)
-            router.push('/bookings')
+
+            // Wait a tiny bit for the toast to be seen before redirect
+            setTimeout(() => {
+                setDate(undefined)
+                router.push('/bookings')
+                router.refresh()
+                // Safety: reset loading state after redirect starts
+                setIsLoading(false)
+            }, 1000)
 
         } catch (error: any) {
-            toast.dismiss()
-            toast.error(t.booking.failed + error.message)
-        } finally {
+            console.error("Critical booking failure:", error)
+            toast.error(t.booking.failed + (error.message || "Unknown error"))
             setIsLoading(false)
         }
     }

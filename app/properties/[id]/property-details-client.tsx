@@ -11,37 +11,57 @@ import { useLanguage } from '@/components/providers/language-provider'
 import {
     Star, MapPin, CheckCircle2, ShieldCheck, Mail,
     Wifi, Car, Tv, Utensils, Wind, Monitor, Coffee,
-    Waves, Key
+    Waves, Key, Share, Heart, ChevronLeft, ChevronRight, Navigation, AlertCircle
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { format, addDays, parseISO } from 'date-fns'
+import { cn } from '@/lib/utils'
+import { DateRange } from 'react-day-picker'
 import Map, { Marker } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { updatePropertyLocation } from '@/app/actions/properties'
+import { updatePropertyLocation, trackPropertyView } from '@/app/actions/properties'
 import { MapPicker } from '@/components/ui/map-picker'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
+import { PropertyReviews } from '@/components/properties/property-reviews'
+import { useCurrency } from '@/components/providers/currency-provider'
+import { Calendar } from '@/components/ui/calendar'
+import { PropertyGallery } from '@/components/properties/property-gallery'
 
 interface PropertyDetailsClientProps {
     property: any
     user: any
     propertySpecs: any
     propertyRooms: any[]
+    propertyAmenities: any[]
     ownerProfile: any
     isFavorited: boolean
     reviews: any[]
     ratingInfo: any
+    canReview?: boolean
 }
 
-import { useRouter } from 'next/navigation'
-import { PropertyReviews } from '@/components/properties/property-reviews'
-
-export function PropertyDetailsClient({ property, user, propertySpecs, propertyRooms, ownerProfile, isFavorited, reviews, ratingInfo }: PropertyDetailsClientProps) {
+export function PropertyDetailsClient({
+    property,
+    user,
+    propertySpecs,
+    propertyRooms,
+    propertyAmenities,
+    ownerProfile,
+    isFavorited,
+    reviews,
+    ratingInfo,
+    canReview
+}: PropertyDetailsClientProps) {
     const { t } = useLanguage()
+    const { formatPrice } = useCurrency()
     const router = useRouter()
 
     // Safety check: track view
     React.useEffect(() => {
         if (user?.id !== property.owner_id) {
-            import('@/app/actions/properties').then(m => m.trackPropertyView(property.id, user?.id))
+            trackPropertyView(property.id, user?.id)
         }
     }, [property.id, user?.id, property.owner_id])
 
@@ -88,7 +108,55 @@ export function PropertyDetailsClient({ property, user, propertySpecs, propertyR
     }
 
     // Safely parse amenities
-    const amenities = Array.isArray(property.amenities) ? property.amenities : []
+    const amenities = propertyAmenities.map((am: any) => am.amenity)
+
+    // Booking State (Lifted for shareability)
+    const [selectedRoomId, setSelectedRoomId] = useState<string>(propertyRooms[0]?.id || '')
+    const [date, setDate] = useState<DateRange | undefined>()
+    const [disabledDates, setDisabledDates] = useState<Date[]>([])
+
+    const selectedRoom = propertyRooms.find(r => r.id === selectedRoomId)
+    const unitsAvailable = selectedRoom?.units_count || 1
+
+    // Fetch availability
+    React.useEffect(() => {
+        if (!selectedRoomId) return
+        const supabase = createClient()
+
+        const fetchBlockedDates = async () => {
+            const { data } = await supabase
+                .from('bookings')
+                .select('start_date, end_date, units_booked')
+                .eq('room_id', selectedRoomId)
+                .neq('status', 'cancelled')
+                .gte('end_date', new Date().toISOString())
+
+            if (data) {
+                const dateMap: Record<string, number> = {}
+                data.forEach((booking: any) => {
+                    let curr = parseISO(booking.start_date)
+                    const end = parseISO(booking.end_date)
+                    const ub = booking.units_booked || 1
+
+                    while (curr < end) {
+                        const dStr = format(curr, 'yyyy-MM-dd')
+                        dateMap[dStr] = (dateMap[dStr] || 0) + ub
+                        curr = addDays(curr, 1)
+                    }
+                })
+
+                const blocked: Date[] = []
+                Object.entries(dateMap).forEach(([dStr, count]) => {
+                    if (count >= unitsAvailable) {
+                        blocked.push(parseISO(dStr))
+                    }
+                })
+                setDisabledDates(blocked)
+            }
+        }
+
+        fetchBlockedDates()
+    }, [selectedRoomId, unitsAvailable])
 
     // Calculate dynamic values
     const maxGuests = propertyRooms.length > 0
@@ -167,6 +235,28 @@ export function PropertyDetailsClient({ property, user, propertySpecs, propertyR
 
                             <span className="hidden sm:inline text-slate-300">|</span>
 
+                            <div className="flex items-center gap-1.5">
+                                {(() => {
+                                    const prices = propertyRooms?.map(r => Number(r.price_per_night)) || []
+                                    if (prices.length === 0) return null
+
+                                    const minPrice = Math.min(...prices)
+                                    const maxPrice = Math.max(...prices)
+
+                                    return (
+                                        <span className="text-[#0B3D6F] font-black underline decoration-[#F17720] decoration-2 underline-offset-4">
+                                            {minPrice === maxPrice
+                                                ? formatPrice(minPrice)
+                                                : `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`
+                                            }
+                                            <span className="text-[10px] text-slate-400 font-bold ml-1 uppercase">/night</span>
+                                        </span>
+                                    )
+                                })()}
+                            </div>
+
+                            <span className="hidden sm:inline text-slate-300">|</span>
+
                             <div className="flex gap-2">
                                 <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-none font-bold">
                                     {property.type}
@@ -179,106 +269,12 @@ export function PropertyDetailsClient({ property, user, propertySpecs, propertyR
                     </div>
                 </div>
 
-                {/* Gallery */}
-                {/* Dynamic Image Grid */}
-                <div className="h-[45vh] md:h-[60vh] min-h-[400px] mb-12 rounded-3xl overflow-hidden shadow-sm ring-1 ring-black/5">
-                    {/* Case 1: Only Main Image */}
-                    {(!property.property_images || property.property_images.length === 0) && (
-                        <div className="w-full h-full relative group cursor-pointer">
-                            <img
-                                src={property.main_image_url || '/placeholder.jpg'}
-                                alt={property.title}
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                            />
-                            <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                        </div>
-                    )}
-
-                    {/* Case 2: Main + 1 Image */}
-                    {property.property_images?.length === 1 && (
-                        <div className="grid grid-cols-2 gap-2 h-full">
-                            <div className="relative group cursor-pointer overflow-hidden">
-                                <img src={property.main_image_url || '/placeholder.jpg'} alt="Main" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                            </div>
-                            <div className="relative group cursor-pointer overflow-hidden">
-                                <img src={property.property_images[0].image_url} alt="Gallery 1" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Case 3: Main + 2 Images (1 Left, 2 Right stacked) */}
-                    {property.property_images?.length === 2 && (
-                        <div className="grid grid-cols-3 gap-2 h-full">
-                            <div className="col-span-2 relative group cursor-pointer overflow-hidden">
-                                <img src={property.main_image_url || '/placeholder.jpg'} alt="Main" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                            </div>
-                            <div className="col-span-1 grid grid-rows-2 gap-2">
-                                {property.property_images.map((img: any, idx: number) => (
-                                    <div key={idx} className="relative group cursor-pointer overflow-hidden h-full">
-                                        <img src={img.image_url} alt={`Gallery ${idx}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                        <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Case 4: Main + 3 Images (1 Left, 1 Top Right, 2 Bottom Right) */}
-                    {property.property_images?.length === 3 && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full">
-                            <div className="md:col-span-2 row-span-2 relative group cursor-pointer overflow-hidden">
-                                <img src={property.main_image_url || '/placeholder.jpg'} alt="Main" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                            </div>
-                            <div className="md:col-span-2 h-full relative group cursor-pointer overflow-hidden">
-                                <img src={property.property_images[0].image_url} alt="Gallery 1" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                            </div>
-                            {property.property_images.slice(1).map((img: any, idx: number) => (
-                                <div key={idx} className="h-full relative group cursor-pointer overflow-hidden">
-                                    <img src={img.image_url} alt={`Gallery ${idx + 1}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                    <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Case 5: Main + 4 or more Images (Standard Bento) */}
-                    {property.property_images?.length >= 4 && (
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 h-full">
-                            <div className="md:col-span-2 h-full relative group cursor-pointer bg-slate-100">
-                                <img
-                                    src={property.main_image_url || '/placeholder.jpg'}
-                                    alt={property.title}
-                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                />
-                                <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-                            </div>
-                            <div className="hidden md:grid grid-cols-2 col-span-2 gap-2 h-full">
-                                {property.property_images.slice(0, 4).map((img: any, idx: number) => (
-                                    <div key={idx} className="relative group cursor-pointer overflow-hidden h-full bg-slate-100">
-                                        <img
-                                            src={img.image_url}
-                                            alt={`Gallery ${idx}`}
-                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                        />
-                                        <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
-
-                                        {/* Overlay for "View All" on the last image if there are more */}
-                                        {idx === 3 && property.property_images.length > 4 && (
-                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white font-bold text-lg backdrop-blur-[2px] transition-opacity hover:bg-black/50">
-                                                +{property.property_images.length - 4} photos
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                {/* Gallery component replacement */}
+                <PropertyGallery
+                    mainImageUrl={property.main_image_url}
+                    images={property.property_images || []}
+                    title={property.title}
+                />
 
                 {/* Main Content */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
@@ -337,11 +333,10 @@ export function PropertyDetailsClient({ property, user, propertySpecs, propertyR
                             {amenities.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
                                     {amenities.map((amenity: any, idx: number) => {
-                                        const name = amenity.name || amenity
                                         return (
                                             <div key={idx} className="flex items-center gap-3 pb-2 border-b border-gray-50 last:border-0 hover:bg-slate-50 p-2 rounded-lg transition-colors">
-                                                {getAmenityIcon(name)}
-                                                <span className="text-slate-700">{name}</span>
+                                                {getAmenityIcon(amenity)}
+                                                <span className="text-slate-700">{amenity}</span>
                                             </div>
                                         )
                                     })}
@@ -353,79 +348,141 @@ export function PropertyDetailsClient({ property, user, propertySpecs, propertyR
                             )}
                         </div>
 
+                        <Separator className="bg-gray-100" />
 
-                        {/* Location / Map Section */}
-                        <div className="py-2">
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-[#0B3D6F]">{t.property.location || "Where you'll be"}</h2>
-                                {isOwner && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setIsEditingLocation(!isEditingLocation)}
-                                        className="text-[#F17720] border-[#F17720] hover:bg-orange-50"
-                                    >
-                                        {isEditingLocation ? 'Cancel' : (property.latitude ? 'Edit Location' : 'Add Location')}
-                                    </Button>
-                                )}
+                        {/* Availability & Selection */}
+                        <div id="availability" className="space-y-8">
+                            <div>
+                                <h2 className="text-2xl font-bold text-[#0B3D6F] mb-2">Availability & Room Selection</h2>
+                                <p className="text-slate-500">Choose your room and see available dates for your stay.</p>
                             </div>
 
-                            <div className="h-[400px] w-full rounded-2xl overflow-hidden border border-gray-200 relative bg-slate-50 shadow-sm">
-                                {(property.latitude && property.longitude && !isEditingLocation) ? (
-                                    <Map
-                                        initialViewState={{
-                                            latitude: property.latitude,
-                                            longitude: property.longitude,
-                                            zoom: 13
-                                        }}
-                                        style={{ width: '100%', height: '100%' }}
-                                        mapStyle="mapbox://styles/mapbox/streets-v12"
-                                        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-                                    >
-                                        <Marker longitude={property.longitude} latitude={property.latitude} anchor="bottom">
-                                            <div className="bg-white p-2 rounded-full shadow-lg">
-                                                <MapPin className="w-8 h-8 text-[#F17720] fill-[#F17720]" />
-                                            </div>
-                                        </Marker>
-                                    </Map>
-                                ) : (
-                                    (isEditingLocation || (!property.latitude && isOwner)) ? (
-                                        <div className="relative h-full w-full">
-                                            <MapPicker
-                                                latitude={location.lat}
-                                                longitude={location.lng}
-                                                onLocationSelect={(lat, lng) => setLocation({ lat, lng })}
-                                                height="100%"
-                                            />
-                                            {isEditingLocation && (
-                                                <div className="absolute top-4 right-4 z-10 bg-white/90 p-2 rounded-xl border shadow-lg backdrop-blur-sm">
-                                                    <p className="text-xs font-bold text-slate-600 mb-2 px-1">Adjust pin to exact location</p>
-                                                    <Button onClick={handleUpdateLocation} size="sm" className="w-full bg-[#0B3D6F] text-white hover:bg-[#092d52]">
-                                                        Save Location
-                                                    </Button>
-                                                </div>
+                            {propertyRooms.length > 1 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                    {propertyRooms.map((room) => (
+                                        <button
+                                            key={room.id}
+                                            onClick={() => setSelectedRoomId(room.id)}
+                                            className={cn(
+                                                "p-4 rounded-2xl border-2 text-left transition-all",
+                                                selectedRoomId === room.id
+                                                    ? "border-[#F17720] bg-orange-50/50"
+                                                    : "border-slate-100 hover:border-slate-300"
                                             )}
+                                        >
+                                            <h4 className="font-bold text-[#0B3D6F] truncate">{room.name}</h4>
+                                            <p className="text-xs text-slate-500 mt-1">{formatPrice(room.price_per_night)} / night</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="bg-slate-50 rounded-[2rem] p-6 lg:p-10 flex flex-col items-center">
+                                <Calendar
+                                    mode="range"
+                                    numberOfMonths={2}
+                                    selected={date}
+                                    onSelect={setDate}
+                                    disabled={[
+                                        { before: new Date() },
+                                        ...disabledDates
+                                    ]}
+                                    className="rounded-3xl border-0 shadow-sm bg-white p-6"
+                                />
+
+                                <div className="mt-8 flex flex-wrap gap-6 justify-center">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded-md border-2 border-slate-200 bg-white" />
+                                        <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Available</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded-md bg-slate-100" />
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest text-slate-400">Booked</span>
+                                    </div>
+                                    {date?.from && date?.to ? (
+                                        <div className="flex items-center gap-2 text-green-600 animate-in zoom-in-95">
+                                            <CheckCircle2 className="w-5 h-5" />
+                                            <span className="text-xs font-black uppercase tracking-widest">Dates Selected</span>
                                         </div>
                                     ) : (
-                                        <div className="flex flex-col h-full items-center justify-center text-slate-400 bg-slate-50">
-                                            <MapPin className="w-12 h-12 mb-2 opacity-20" />
-                                            <p>Location information not available</p>
+                                        <div className="flex items-center gap-2 text-[#F17720]">
+                                            <AlertCircle className="w-5 h-5" />
+                                            <span className="text-xs font-black uppercase tracking-widest">Select your dates</span>
                                         </div>
-                                    )
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
 
+                        <Separator className="bg-gray-100" />
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-[#0B3D6F]">{t.property.location || "Where you'll be"}</h2>
+                            {isOwner && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsEditingLocation(!isEditingLocation)}
+                                    className="text-[#F17720] border-[#F17720] hover:bg-orange-50"
+                                >
+                                    {isEditingLocation ? 'Cancel' : (property.latitude ? 'Edit Location' : 'Add Location')}
+                                </Button>
+                            )}
+                        </div>
+
+                        <div className="h-[400px] w-full rounded-2xl overflow-hidden border border-gray-200 relative bg-slate-50 shadow-sm">
+                            {(property.latitude && property.longitude && !isEditingLocation) ? (
+                                <Map
+                                    initialViewState={{
+                                        latitude: property.latitude,
+                                        longitude: property.longitude,
+                                        zoom: 13
+                                    }}
+                                    style={{ width: '100%', height: '100%' }}
+                                    mapStyle="mapbox://styles/mapbox/streets-v12"
+                                    mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+                                >
+                                    <Marker longitude={property.longitude} latitude={property.latitude} anchor="bottom">
+                                        <div className="bg-white p-2 rounded-full shadow-lg">
+                                            <MapPin className="w-8 h-8 text-[#F17720] fill-[#F17720]" />
+                                        </div>
+                                    </Marker>
+                                </Map>
+                            ) : (
+                                (isEditingLocation || (!property.latitude && isOwner)) ? (
+                                    <div className="relative h-full w-full">
+                                        <MapPicker
+                                            latitude={location.lat}
+                                            longitude={location.lng}
+                                            onLocationSelect={(lat, lng) => setLocation({ lat, lng })}
+                                            height="100%"
+                                        />
+                                        {isEditingLocation && (
+                                            <div className="absolute top-4 right-4 z-10 bg-white/90 p-2 rounded-xl border shadow-lg backdrop-blur-sm">
+                                                <p className="text-xs font-bold text-slate-600 mb-2 px-1">Adjust pin to exact location</p>
+                                                <Button onClick={handleUpdateLocation} size="sm" className="w-full bg-[#0B3D6F] text-white hover:bg-[#092d52]">
+                                                    Save Location
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col h-full items-center justify-center text-slate-400 bg-slate-50">
+                                        <MapPin className="w-12 h-12 mb-2 opacity-20" />
+                                        <p>Location information not available</p>
+                                    </div>
+                                )
+                            )}
+                        </div>
                         {/* Reviews Section */}
                         <PropertyReviews
                             propertyId={property.id}
                             reviews={reviews}
                             ratingInfo={ratingInfo}
                             userId={user?.id}
+                            canReview={canReview}
                         />
 
                         <Separator className="bg-gray-100" />
-
                     </div>
 
                     {/* RIGHT COLUMN - Sticky Booking */}
@@ -440,6 +497,11 @@ export function PropertyDetailsClient({ property, user, propertySpecs, propertyR
                                         propertyId={property.id}
                                         rooms={propertyRooms}
                                         propertyType={property.type}
+                                        selectedRoomId={selectedRoomId}
+                                        setSelectedRoomId={setSelectedRoomId}
+                                        date={date}
+                                        setDate={setDate}
+                                        disabledDates={disabledDates}
                                     />
                                 </div>
                             </div>

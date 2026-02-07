@@ -2,7 +2,7 @@
 
 import { useUser } from "@/components/providers/user-provider"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { Home, Building, Settings, LogOut, Shield } from "lucide-react"
 import type { ReactNode } from "react"
@@ -10,29 +10,39 @@ import type { ReactNode } from "react"
 export default function OwnerLayout({ children }: { children: ReactNode }) {
     const { user, profile, isLoading } = useUser()
     const router = useRouter()
+    const pathname = usePathname()
+    const isNewPropertyPath = pathname === '/owner/properties/new'
 
     useEffect(() => {
         if (!isLoading) {
             if (!user) {
                 router.push('/login')
-            } else if (profile && profile.role !== 'house_owner' && profile.role !== 'admin') {
-                // If user is client, redirect to home or upgrade page?
+            } else if (profile && profile.role === 'client' && !isNewPropertyPath) {
+                // If user is client and not on the onboarding page, redirect to home
                 router.push('/')
             }
         }
-    }, [user, profile, isLoading, router])
+    }, [user, profile, isLoading, router, pathname, isNewPropertyPath])
 
     if (isLoading) {
         return (
-            <div className="flex h-screen w-full flex-col items-center justify-center bg-white gap-4 z-50 relative">
-                <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#0B3D6F] border-t-transparent" />
-                <div className="text-[#0B3D6F] font-medium tracking-wide animate-pulse">Loading DARLINK...</div>
+            <div className="flex h-screen w-full flex-col items-center justify-center bg-[#0B3D6F] gap-4 z-50 relative">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/30 border-t-white" />
+                <div className="text-white font-medium tracking-wide animate-pulse">Loading DARLINK...</div>
             </div>
         )
     }
 
-    if (!user || (profile?.role !== 'house_owner' && profile?.role !== 'admin')) {
-        return null
+    // Role check and path check
+    const isAuthorized = user && (profile?.role === 'house_owner' || profile?.role === 'admin' || isNewPropertyPath)
+
+    if (!isAuthorized) {
+        return (
+            <div className="flex h-screen w-full flex-col items-center justify-center bg-[#0B3D6F] gap-4">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/30 border-t-white" />
+                <div className="text-white font-medium tracking-wide">Redirecting to home...</div>
+            </div>
+        )
     }
 
     return (

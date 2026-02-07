@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/components/providers/language-provider'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,7 @@ interface AccountClientProps {
 
 export function AccountClient({ profile, user }: AccountClientProps) {
     const { t } = useLanguage()
+    const router = useRouter()
     const supabase = createClient()
 
     const [isLoading, setIsLoading] = useState(false)
@@ -35,32 +37,49 @@ export function AccountClient({ profile, user }: AccountClientProps) {
         const file = e.target.files?.[0]
         if (!file) return
 
+        // 1. Local Preview for instant feedback
+        const localUrl = URL.createObjectURL(file)
+        setFormData(prev => ({ ...prev, avatar_url: localUrl }))
+
         setIsUploading(true)
+        const toastId = toast.loading("Uploading your new photo...")
+
         try {
             const fileExt = file.name.split('.').pop()
             const fileName = `${user.id}/avatar-${Date.now()}.${fileExt}`
 
+            // 2. Upload to Storage
             const { error: uploadError } = await supabase.storage
                 .from('avatars')
-                .upload(fileName, file)
+                .upload(fileName, file, { cacheControl: '3600', upsert: true })
 
-            if (uploadError) throw uploadError
+            if (uploadError) {
+                if (uploadError.message.includes('Bucket not found')) {
+                    throw new Error("Storage bucket 'avatars' is missing. Please run the SQL fix or create it manually in Supabase dashboard.")
+                }
+                throw uploadError
+            }
 
+            // 3. Get Public URL
             const { data: { publicUrl } } = supabase.storage
                 .from('avatars')
                 .getPublicUrl(fileName)
 
-            setFormData(prev => ({ ...prev, avatar_url: publicUrl }))
-
-            // Auto-save the avatar URL to the profile
+            // 4. Update Profile Table & Auth Metadata
             const result = await updateProfile({ avatar_url: publicUrl })
+
             if (result.success) {
-                toast.success(t.account.updateSuccess)
+                setFormData(prev => ({ ...prev, avatar_url: publicUrl }))
+                toast.success(t.account.updateSuccess, { id: toastId })
+                router.refresh() // Refresh to sync everything
             } else {
                 throw new Error(result.error)
             }
         } catch (error: any) {
-            toast.error(t.account.updateError + ": " + error.message)
+            console.error("Avatar upload error:", error)
+            toast.error(t.account.updateError + ": " + (error.message || "Unknown error"), { id: toastId })
+            // Revert preview on failure
+            setFormData(prev => ({ ...prev, avatar_url: profile.avatar_url || '' }))
         } finally {
             setIsUploading(false)
         }
@@ -89,10 +108,10 @@ export function AccountClient({ profile, user }: AccountClientProps) {
     }
 
     return (
-        <div className="max-w-5xl mx-auto py-12 px-4 space-y-12">
-            <div className="space-y-2">
-                <h1 className="text-4xl font-black text-[#0B3D6F] tracking-tight">{t.account.title}</h1>
-                <p className="text-slate-500 font-medium">{t.account.subtitle}</p>
+        <div className="max-w-5xl mx-auto pt-32 pb-20 px-4 space-y-12">
+            <div className="space-y-3">
+                <h1 className="text-4xl font-bold text-[#0B3D6F] tracking-tight">{t.account.title}</h1>
+                <p className="text-slate-500 font-medium text-lg leading-relaxed">{t.account.subtitle}</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -114,10 +133,10 @@ export function AccountClient({ profile, user }: AccountClientProps) {
                             </div>
 
                             <div className="mt-6 space-y-1">
-                                <h2 className="text-xl font-black text-[#0B3D6F] uppercase tracking-tight">
+                                <h2 className="text-2xl font-bold text-[#0B3D6F] tracking-tight">
                                     {formData.full_name || 'Anonymous User'}
                                 </h2>
-                                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">{profile.email}</p>
+                                <p className="text-slate-500 font-medium text-sm">{profile.email}</p>
                             </div>
 
                             <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -133,16 +152,16 @@ export function AccountClient({ profile, user }: AccountClientProps) {
                             </div>
                         </CardContent>
                         <div className="border-t border-slate-50 p-6 bg-slate-50/30">
-                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            <div className="flex justify-between items-center text-xs font-medium text-slate-500">
                                 <span>{t.account.memberSince}</span>
-                                <span className="text-[#0B3D6F]">{profile.created_at ? format(new Date(profile.created_at), 'MMMM yyyy') : 'N/A'}</span>
+                                <span className="text-[#0B3D6F] font-bold">{profile.created_at ? format(new Date(profile.created_at), 'MMMM yyyy') : 'N/A'}</span>
                             </div>
                         </div>
                     </Card>
 
                     <Card className="rounded-[2.5rem] border-0 shadow-[0_15px_40px_-10px_rgba(0,0,0,0.05)] bg-slate-900 text-white overflow-hidden">
                         <CardHeader>
-                            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2 text-blue-200">
+                            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2 text-blue-200">
                                 <Shield className="w-4 h-4" />
                                 {t.account.security}
                             </CardTitle>
@@ -159,7 +178,7 @@ export function AccountClient({ profile, user }: AccountClientProps) {
                 <div className="lg:col-span-2 space-y-8">
                     <Card className="rounded-[2.5rem] border-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] bg-white overflow-hidden">
                         <CardHeader className="p-8 border-b border-slate-50">
-                            <CardTitle className="text-xl font-black text-[#0B3D6F] uppercase tracking-tight flex items-center gap-3">
+                            <CardTitle className="text-xl font-bold text-[#0B3D6F] uppercase tracking-wider flex items-center gap-3">
                                 <div className="p-2 bg-orange-50 rounded-xl text-[#F17720]">
                                     <User className="w-5 h-5" />
                                 </div>
@@ -170,46 +189,46 @@ export function AccountClient({ profile, user }: AccountClientProps) {
                             <form onSubmit={handleSubmit} className="space-y-8">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-3">
-                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
                                             {t.account.fullName}
                                         </Label>
                                         <div className="relative">
                                             <Input
                                                 value={formData.full_name}
                                                 onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                                                className="h-14 bg-slate-50 border-slate-100 rounded-2xl focus:ring-[#0B3D6F] font-bold text-[#0B3D6F] pl-12"
+                                                className="h-14 bg-slate-50 border-slate-100 rounded-2xl focus:ring-[#0B3D6F] font-semibold text-[#0B3D6F] pl-12"
                                                 placeholder="e.g. Achref Ghozzi"
                                             />
-                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                         </div>
                                     </div>
 
                                     <div className="space-y-3">
-                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
                                             {t.account.email}
                                         </Label>
                                         <div className="relative">
                                             <Input
                                                 value={profile.email}
                                                 disabled
-                                                className="h-14 bg-slate-100 border-slate-100 rounded-2xl font-bold text-slate-400 pl-12 cursor-not-allowed"
+                                                className="h-14 bg-slate-100 border-slate-100 rounded-2xl font-semibold text-slate-500 pl-12 cursor-not-allowed"
                                             />
-                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                         </div>
                                     </div>
 
                                     <div className="space-y-3">
-                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
                                             {t.account.phone}
                                         </Label>
                                         <div className="relative">
                                             <Input
                                                 value={formData.phone}
                                                 onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                                                className="h-14 bg-slate-50 border-slate-100 rounded-2xl focus:ring-[#0B3D6F] font-bold text-[#0B3D6F] pl-12"
+                                                className="h-14 bg-slate-50 border-slate-100 rounded-2xl focus:ring-[#0B3D6F] font-semibold text-[#0B3D6F] pl-12"
                                                 placeholder="+216 12 345 678"
                                             />
-                                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                         </div>
                                     </div>
 
@@ -219,7 +238,7 @@ export function AccountClient({ profile, user }: AccountClientProps) {
                                     <Button
                                         type="submit"
                                         disabled={isLoading}
-                                        className="h-14 px-10 rounded-2xl bg-[#0B3D6F] hover:bg-[#092d52] text-white font-black uppercase tracking-widest shadow-xl shadow-blue-900/10 transition-all hover:-translate-y-0.5"
+                                        className="h-14 px-10 rounded-2xl bg-[#0B3D6F] hover:bg-[#092d52] text-white font-bold uppercase tracking-wider shadow-xl shadow-blue-900/10 transition-all hover:-translate-y-0.5"
                                     >
                                         {isLoading ? (
                                             <>
@@ -235,7 +254,7 @@ export function AccountClient({ profile, user }: AccountClientProps) {
 
                     <Card className="rounded-[2.5rem] border-2 border-red-50 bg-red-50/10 overflow-hidden">
                         <CardHeader className="p-8">
-                            <CardTitle className="text-xl font-black text-red-500 uppercase tracking-tight flex items-center gap-3">
+                            <CardTitle className="text-xl font-bold text-red-500 uppercase tracking-wider flex items-center gap-3">
                                 <Trash2 className="w-5 h-5" />
                                 {t.account.dangerZone}
                             </CardTitle>

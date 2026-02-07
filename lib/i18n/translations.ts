@@ -499,6 +499,8 @@ export const translations = {
             viewAll: "Vedi tutti gli annunci",
             noStays: "Nessun soggiorno trovato",
             noStaysDesc: "Non siamo riusciti a trovare proprietà pubblicate al momento. Torna presto!",
+            viewMap: "Mostra Mappa",
+            viewList: "Mostra Lista",
         },
         footer: {
             about: "Il tuo mercato di fiducia per case vacanze in Tunisia. Ti colleghiamo con soggiorni autentici per creare ricordi indimenticabili.",
@@ -561,7 +563,16 @@ export const translations = {
             noAmenities: "Questa proprietà non ha ancora elencato servizi specifici.",
             newListing: "Nuovo annuncio",
             photos: "foto",
-            location: "Dove sarai"
+            location: "Dove sarai",
+            reviews: "Recensioni",
+            cleanliness: "Pulizia",
+            accuracy: "Precisione",
+            communication: "Comunicazione",
+            locationRating: "Posizione",
+            checkIn: "Check-in",
+            value: "Qualità-prezzo",
+            writeReview: "Scrivi una recensione",
+            noReviews: "Nessuna recensione ancora. Sii il primo a condividere la tua esperienza!",
         },
         navbar: {
             stays: "Soggiorni",

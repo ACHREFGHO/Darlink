@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,22 @@ interface NavbarProps {
     variant?: 'home' | 'inner'
 }
 
+// Moved static arrays outside the component
+const languages = [
+    { code: 'en', label: 'English', flag: '🇺🇸', region: 'EN' },
+    { code: 'fr', label: 'Français', flag: '🇫🇷', region: 'FR' },
+    { code: 'ar', label: 'العربية', flag: '🇹🇳', region: 'TN' },
+    { code: 'it', label: 'Italiano', flag: '🇮🇹', region: 'IT' },
+]
+
+const currencies: { code: Currency, label: string, symbol: string }[] = [
+    { code: 'TND', label: 'Tunisian Dinar', symbol: 'DT' },
+    { code: 'EUR', label: 'Euro', symbol: '€' },
+    { code: 'USD', label: 'US Dollar', symbol: '$' },
+]
+
 export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarProps) {
+    const [mounted, setMounted] = React.useState(false) // Added mounted state
     const [scrolled, setScrolled] = useState(false)
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
     const [authView, setAuthView] = useState<'signin' | 'signup'>('signin')
@@ -35,23 +50,13 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
     const { language, setLanguage, t } = useLanguage()
     const { currency, setCurrency } = useCurrency()
 
-    const languages = [
-        { code: 'en', label: 'English', flag: '��', region: 'EN' },
-        { code: 'fr', label: 'Français', flag: '🇫🇷', region: 'FR' },
-        { code: 'ar', label: 'العربية', flag: '🇹🇳', region: 'TN' },
-        { code: 'it', label: 'Italiano', flag: '🇮🇹', region: 'IT' },
-    ]
-
-    const currencies: { code: Currency, label: string, symbol: string }[] = [
-        { code: 'TND', label: 'Tunisian Dinar', symbol: 'DT' },
-        { code: 'EUR', label: 'Euro', symbol: '€' },
-        { code: 'USD', label: 'US Dollar', symbol: '$' },
-    ]
+    // Removed static arrays from here
 
     const activeLang = languages.find(l => l.code === language) || languages[0]
     const activeCurrency = currencies.find(c => c.code === currency) || currencies[0]
 
     useEffect(() => {
+        setMounted(true) // Set mounted to true after initial render
         const handleScroll = () => {
             setScrolled(window.scrollY > 20)
         }
@@ -94,7 +99,7 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                     <div className="hidden sm:flex flex-col justify-center -space-y-1">
                         <div className="leading-none flex items-baseline">
                             <span className={cn(
-                                "font-extrabold text-2xl tracking-tight text-[#0B3D6F]",
+                                "font-bold text-2xl tracking-tight text-[#0B3D6F]",
                                 isTransparent ? "text-white" : ""
                             )}>
                                 DAR
@@ -106,12 +111,12 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                                 LINK
                             </span>
                             <span className={cn(
-                                "text-sm font-medium ml-0.5 opacity-60",
+                                "text-sm font-semibold ml-0.5 opacity-70",
                                 isTransparent ? "text-white" : "text-[#0B3D6F]"
                             )}>.tn</span>
                         </div>
                         <span className={cn(
-                            "text-[10px] uppercase tracking-[0.2em] font-medium opacity-80 hidden lg:block",
+                            "text-[11px] uppercase tracking-[0.15em] font-semibold opacity-90 hidden lg:block mt-0.5",
                             isTransparent ? "text-blue-100" : "text-slate-500"
                         )}>
                             Authentic Tunisian Stays
@@ -154,151 +159,157 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                     )}
 
                     {/* Currency Menu */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <div className={cn(
-                                "h-10 px-3 cursor-pointer transition-colors hidden sm:flex items-center justify-center rounded-full hover:bg-white/10 border",
-                                isTransparent ? "text-white border-white/30" : "text-gray-700 hover:bg-gray-100 border-gray-200"
-                            )}>
-                                <span className="text-xs font-bold tracking-wider">
-                                    {activeCurrency.code}
-                                </span>
-                            </div>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-white rounded-xl shadow-xl border-gray-100 w-48">
-                            {currencies.map((curr) => (
-                                <DropdownMenuItem
-                                    key={curr.code}
-                                    onClick={() => setCurrency(curr.code)}
-                                    className="cursor-pointer py-3 px-4 font-medium text-gray-700 focus:bg-gray-50 focus:text-black flex items-center justify-between group"
-                                >
-                                    <span className="text-sm">{curr.label}</span>
-                                    <span className="ml-4 px-2 py-0.5 text-xs font-bold bg-gray-100 text-gray-600 rounded group-hover:bg-[#0B3D6F] group-hover:text-white transition-colors">
-                                        {curr.symbol}
+                    {mounted && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className={cn(
+                                    "h-10 px-3 cursor-pointer transition-colors hidden sm:flex items-center justify-center rounded-full hover:bg-white/10 border outline-none",
+                                    isTransparent ? "text-white border-white/30" : "text-gray-700 hover:bg-gray-100 border-gray-200"
+                                )}>
+                                    <span className="text-xs font-bold tracking-wider">
+                                        {activeCurrency.code}
                                     </span>
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-white rounded-xl shadow-xl border-gray-100 w-48">
+                                {currencies.map((curr) => (
+                                    <DropdownMenuItem
+                                        key={curr.code}
+                                        onClick={() => setCurrency(curr.code)}
+                                        className="cursor-pointer py-3 px-4 font-medium text-gray-700 focus:bg-gray-50 focus:text-black flex items-center justify-between group"
+                                    >
+                                        <span className="text-sm">{curr.label}</span>
+                                        <span className="ml-4 px-2 py-0.5 text-xs font-bold bg-gray-100 text-gray-600 rounded group-hover:bg-[#0B3D6F] group-hover:text-white transition-colors">
+                                            {curr.symbol}
+                                        </span>
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
 
                     {/* Language Menu */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <div className={cn(
-                                "h-10 px-3 cursor-pointer transition-colors hidden sm:flex items-center justify-center rounded-full hover:bg-white/10 border",
-                                isTransparent ? "text-white border-white/30" : "text-gray-700 hover:bg-gray-100 border-gray-200"
-                            )}>
-                                <span className="text-xs font-bold tracking-wider">
-                                    {activeLang.region}
-                                </span>
-                            </div>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-white rounded-xl shadow-xl border-gray-100 w-48">
-                            {languages.map((lang) => (
-                                <DropdownMenuItem
-                                    key={lang.code}
-                                    onClick={() => setLanguage(lang.code as any)}
-                                    className="cursor-pointer py-3 px-4 font-medium text-gray-700 focus:bg-gray-50 focus:text-black flex items-center justify-between group"
-                                >
-                                    <span className="text-sm">{lang.label}</span>
-                                    <span className="ml-4 px-2 py-0.5 text-xs font-bold bg-gray-100 text-gray-600 rounded group-hover:bg-[#0B3D6F] group-hover:text-white transition-colors">
-                                        {lang.region}
+                    {mounted && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className={cn(
+                                    "h-10 px-3 cursor-pointer transition-colors hidden sm:flex items-center justify-center rounded-full hover:bg-white/10 border outline-none",
+                                    isTransparent ? "text-white border-white/30" : "text-gray-700 hover:bg-gray-100 border-gray-200"
+                                )}>
+                                    <span className="text-xs font-bold tracking-wider">
+                                        {activeLang.region}
                                     </span>
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-white rounded-xl shadow-xl border-gray-100 w-48">
+                                {languages.map((lang) => (
+                                    <DropdownMenuItem
+                                        key={lang.code}
+                                        onClick={() => setLanguage(lang.code as any)}
+                                        className="cursor-pointer py-3 px-4 font-medium text-gray-700 focus:bg-gray-50 focus:text-black flex items-center justify-between group"
+                                    >
+                                        <span className="text-sm">{lang.label}</span>
+                                        <span className="ml-4 px-2 py-0.5 text-xs font-bold bg-gray-100 text-gray-600 rounded group-hover:bg-[#0B3D6F] group-hover:text-white transition-colors">
+                                            {lang.region}
+                                        </span>
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
 
                     {/* User Menu */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button className={cn(
-                                "flex items-center gap-2 pl-2 pr-1 py-1 rounded-full border transition-all hover:shadow-md",
-                                isTransparent
-                                    ? "bg-black/20 border-white/30 text-white hover:bg-black/30"
-                                    : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
-                            )}>
-                                <Menu className="w-4 h-4 md:w-5 md:h-5" />
-                                <Avatar className="w-7 h-7 md:w-8 md:h-8 border border-white/10">
-                                    <AvatarImage src={user?.user_metadata?.avatar_url} />
-                                    <AvatarFallback className="bg-gray-500 text-white text-[10px] md:text-xs">
-                                        {user ? user.email?.[0].toUpperCase() : <User className="w-3 h-3 md:w-4 md:h-4" />}
-                                    </AvatarFallback>
-                                </Avatar>
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-64 p-2 rounded-xl shadow-xl border-gray-100 mt-2 bg-white">
-                            {!user ? (
-                                <>
-                                    <DropdownMenuItem className="font-bold py-3 cursor-pointer" onClick={() => { setAuthView('signin'); setIsAuthModalOpen(true) }}>
-                                        {t.navbar.login}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem className="py-3 cursor-pointer" onClick={() => { setAuthView('signup'); setIsAuthModalOpen(true) }}>
-                                        {t.navbar.signup}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem className="py-3 cursor-pointer" onClick={() => router.push('/owner/properties/new')}>
-                                        {t.navbar.becomeHost}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem className="py-3 cursor-pointer">
-                                        {t.navbar.help}
-                                    </DropdownMenuItem>
-                                </>
-                            ) : (
-                                <>
-                                    <DropdownMenuLabel className="font-normal">
-                                        <div className="flex flex-col space-y-1">
-                                            <p className="text-sm font-medium leading-none">{user.user_metadata?.full_name || 'User'}</p>
-                                            <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
-                                        </div>
-                                    </DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
+                    {mounted && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className={cn(
+                                    "flex items-center gap-2 pl-2 pr-1 py-1 rounded-full border transition-all hover:shadow-md outline-none",
+                                    isTransparent
+                                        ? "bg-black/20 border-white/30 text-white hover:bg-black/30"
+                                        : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
+                                )}>
+                                    <Menu className="w-4 h-4 md:w-5 md:h-5" />
+                                    <Avatar className="w-7 h-7 md:w-8 md:h-8 border border-white/10">
+                                        <AvatarImage src={user?.user_metadata?.avatar_url} />
+                                        <AvatarFallback className="bg-gray-500 text-white text-[10px] md:text-xs">
+                                            {user ? user.email?.[0].toUpperCase() : <User className="w-3 h-3 md:w-4 md:h-4" />}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-64 p-2 rounded-xl shadow-xl border-gray-100 mt-2 bg-white">
+                                {!user ? (
+                                    <>
+                                        <DropdownMenuItem className="font-bold py-3 cursor-pointer" onClick={() => { setAuthView('signin'); setIsAuthModalOpen(true) }}>
+                                            {t.navbar.login}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="py-3 cursor-pointer" onClick={() => { setAuthView('signup'); setIsAuthModalOpen(true) }}>
+                                            {t.navbar.signup}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="py-3 cursor-pointer" onClick={() => router.push('/owner/properties/new')}>
+                                            {t.navbar.becomeHost}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="py-3 cursor-pointer">
+                                            {t.navbar.help}
+                                        </DropdownMenuItem>
+                                    </>
+                                ) : (
+                                    <>
+                                        <DropdownMenuLabel className="font-normal">
+                                            <div className="flex flex-col space-y-1">
+                                                <p className="text-sm font-medium leading-none">{user.user_metadata?.full_name || 'User'}</p>
+                                                <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                                            </div>
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
 
-                                    {/* Client Actions */}
-                                    <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/bookings')}>
-                                        <Briefcase className="w-4 h-4 mr-2" />
-                                        {t.navbar.myTrips}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/favorites')}>
-                                        <Heart className="w-4 h-4 mr-2" />
-                                        {t.navbar.wishlists}
-                                    </DropdownMenuItem>
+                                        {/* Client Actions */}
+                                        <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/bookings')}>
+                                            <Briefcase className="w-4 h-4 mr-2" />
+                                            {t.navbar.myTrips}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/favorites')}>
+                                            <Heart className="w-4 h-4 mr-2" />
+                                            {t.navbar.wishlists}
+                                        </DropdownMenuItem>
 
-                                    <DropdownMenuSeparator />
+                                        <DropdownMenuSeparator />
 
-                                    {/* Owner Actions */}
-                                    {(userRole === 'house_owner' || userRole === 'admin') && (
-                                        <>
-                                            <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/owner/dashboard')}>
-                                                <LayoutDashboard className="w-4 h-4 mr-2" />
-                                                {t.navbar.manageListings}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                        </>
-                                    )}
+                                        {/* Owner Actions */}
+                                        {(userRole === 'house_owner' || userRole === 'admin') && (
+                                            <>
+                                                <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/owner/dashboard')}>
+                                                    <LayoutDashboard className="w-4 h-4 mr-2" />
+                                                    {t.navbar.manageListings}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                            </>
+                                        )}
 
-                                    {/* Admin Actions */}
-                                    {userRole === 'admin' && (
-                                        <>
-                                            <DropdownMenuItem className="py-2.5 cursor-pointer font-semibold text-[#B88746]" onClick={() => router.push('/admin/dashboard')}>
-                                                {t.navbar.adminPortal}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                        </>
-                                    )}
+                                        {/* Admin Actions */}
+                                        {userRole === 'admin' && (
+                                            <>
+                                                <DropdownMenuItem className="py-2.5 cursor-pointer font-semibold text-[#B88746]" onClick={() => router.push('/admin/dashboard')}>
+                                                    {t.navbar.adminPortal}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                            </>
+                                        )}
 
-                                    <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/account')}>
-                                        <User className="w-4 h-4 mr-2" />
-                                        {t.navbar.account}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem className="py-2.5 cursor-pointer text-red-600 focus:text-red-600" onClick={handleLogout}>
-                                        <LogOut className="w-4 h-4 mr-2" />
-                                        {t.navbar.logout}
-                                    </DropdownMenuItem>
-                                </>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                        <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/account')}>
+                                            <User className="w-4 h-4 mr-2" />
+                                            {t.navbar.account}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="py-2.5 cursor-pointer text-red-600 focus:text-red-600" onClick={handleLogout}>
+                                            <LogOut className="w-4 h-4 mr-2" />
+                                            {t.navbar.logout}
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
                 </div>
             </div>
 

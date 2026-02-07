@@ -218,16 +218,23 @@ export function PropertyCardListing({ property, index, isFavorited = false, user
                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">From</span>
                             <div className="flex items-baseline gap-1">
                                 {(() => {
-                                    const prices = property.rooms?.map((r: any) => r.price_per_night) || []
-                                    const minPrice = prices.length > 0 ? Math.min(...prices) : null
+                                    const prices = property.rooms?.map((r: any) => Number(r.price_per_night)) || []
+                                    if (prices.length === 0) return (
+                                        <span className="font-black text-2xl text-[#0B3D6F] tracking-tighter">TBD</span>
+                                    )
+
+                                    const minPrice = Math.min(...prices)
+                                    const maxPrice = Math.max(...prices)
+
                                     return (
                                         <>
                                             <span className="font-black text-2xl text-[#0B3D6F] tracking-tighter">
-                                                {minPrice !== null ? formatPrice(minPrice) : 'TBD'}
+                                                {minPrice === maxPrice
+                                                    ? formatPrice(minPrice)
+                                                    : `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`
+                                                }
                                             </span>
-                                            {minPrice !== null && (
-                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">/night</span>
-                                            )}
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">/night</span>
                                         </>
                                     )
                                 })()}

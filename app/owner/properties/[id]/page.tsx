@@ -51,13 +51,20 @@ export default async function PropertyManagePage({ params }: PropertyPageProps) 
         .select('category')
         .eq('property_id', property.id)
 
+    // Fetch Amenities
+    const { data: amenities } = await supabase
+        .from('property_amenities')
+        .select('amenity')
+        .eq('property_id', property.id)
+
     // Construct full data object
     const fullData = {
         ...property,
         images: [], // New file uploads start empty
         existing_images: images || [],
         rooms: rooms || [],
-        specs: specs?.map(s => s.category) || []
+        specs: specs?.map(s => s.category) || [],
+        amenities: amenities?.map(a => a.amenity) || []
     }
 
     return (

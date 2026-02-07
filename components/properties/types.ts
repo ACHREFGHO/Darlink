@@ -21,8 +21,12 @@ export type PropertyFormData = {
         beds: number
         max_guests: number
         units_count: number
+        room_count: number
+        description?: string
+        is_available?: boolean
     }[]
 
     // Step 3
     specs: string[]
+    amenities?: string[]
 }

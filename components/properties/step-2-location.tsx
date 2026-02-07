@@ -13,9 +13,10 @@ interface Step2LocationProps {
     updateData: (data: Partial<PropertyFormData>) => void
     onBack: () => void
     onNext: (data?: Partial<PropertyFormData>) => void
+    mode?: 'create' | 'edit'
 }
 
-export function Step2Location({ data, updateData, onBack, onNext }: Step2LocationProps) {
+export function Step2Location({ data, updateData, onBack, onNext, mode = 'create' }: Step2LocationProps) {
     const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm({
         defaultValues: {
             address: data.address,
@@ -160,7 +161,7 @@ export function Step2Location({ data, updateData, onBack, onNext }: Step2Locatio
                     Back
                 </Button>
                 <Button type="submit" className="bg-[#F17720] hover:bg-[#d6691c] text-white px-8">
-                    Next Step
+                    {mode === 'edit' ? 'Save Changes' : 'Next Step'}
                 </Button>
             </div>
         </form>

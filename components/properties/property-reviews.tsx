@@ -25,9 +25,10 @@ interface PropertyReviewsProps {
     reviews: any[]
     ratingInfo: any
     userId?: string
+    canReview?: boolean
 }
 
-export function PropertyReviews({ propertyId, reviews, ratingInfo, userId }: PropertyReviewsProps) {
+export function PropertyReviews({ propertyId, reviews, ratingInfo, userId, canReview }: PropertyReviewsProps) {
     const { t } = useLanguage()
     const supabase = createClient()
     const [isWriting, setIsWriting] = useState(false)
@@ -69,6 +70,22 @@ export function PropertyReviews({ propertyId, reviews, ratingInfo, userId }: Pro
 
         setIsSubmitting(true)
         try {
+            // Find the first confirmed booking for this user and property that hasn't been reviewed
+            const { data: bookings } = await supabase
+                .from('bookings')
+                .select('id, reviews(id)')
+                .eq('user_id', userId)
+                .eq('property_id', propertyId)
+                .eq('status', 'confirmed')
+
+            const targetBooking = bookings?.find(b => !b.reviews || (Array.isArray(b.reviews) && b.reviews.length === 0))
+
+            if (!targetBooking) {
+                toast.error("You need a confirmed stay to leave a review, or you have already reviewed your stays.")
+                setIsWriting(false)
+                return
+            }
+
             // Calculate overall rating for this review
             const overall = Object.values(scores).reduce((a, b) => a + b, 0) / 6
 
@@ -77,6 +94,7 @@ export function PropertyReviews({ propertyId, reviews, ratingInfo, userId }: Pro
                 .insert({
                     property_id: propertyId,
                     user_id: userId,
+                    booking_id: targetBooking.id, // Important: Link to the booking
                     rating: overall,
                     cleanliness: scores.cleanliness,
                     accuracy: scores.accuracy,
@@ -140,56 +158,64 @@ export function PropertyReviews({ propertyId, reviews, ratingInfo, userId }: Pro
                     </div>
                 </div>
 
-                {/* Write a Review Button */}
+                {/* Write a Review Button - ONLY show if canReview is true */}
                 <div className="md:w-1/3 flex items-start justify-end">
-                    <Dialog open={isWriting} onOpenChange={setIsWriting}>
-                        <DialogTrigger asChild>
-                            <Button className="bg-[#0B3D6F] text-white hover:bg-[#092d52] px-8 py-6 rounded-2xl font-bold shadow-lg">
-                                <MessageSquare className="w-5 h-5 mr-2" />
-                                {t.property.writeReview}
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-xl rounded-3xl p-8">
-                            <DialogHeader>
-                                <DialogTitle className="text-2xl font-extrabold text-[#0B3D6F]">Rate your stay</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-6 py-4">
-                                <div className="grid grid-cols-2 gap-6">
-                                    {Object.entries(scores).map(([key, value]) => (
-                                        <div key={key} className="space-y-3">
-                                            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{key}</label>
-                                            <div className="flex items-center gap-4">
-                                                <Slider
-                                                    value={[value]}
-                                                    min={1}
-                                                    max={5}
-                                                    step={1}
-                                                    onValueChange={(val: number[]) => setScores(s => ({ ...s, [key]: val[0] }))}
-                                                />
-                                                <span className="font-bold text-[#F17720] w-4 text-center">{value}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Your Experience</label>
-                                    <Textarea
-                                        placeholder="Tell us about your stay..."
-                                        className="min-h-[120px] rounded-2xl bg-slate-50 border-slate-100 focus:ring-[#0B3D6F]"
-                                        value={comment}
-                                        onChange={(e) => setComment(e.target.value)}
-                                    />
-                                </div>
-                                <Button
-                                    className="w-full bg-[#F17720] hover:bg-[#d1661b] text-white h-14 rounded-2xl text-lg font-bold"
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting}
-                                >
-                                    {isSubmitting ? "Submitting..." : "Post Review"}
+                    {canReview && userId && (
+                        <Dialog open={isWriting} onOpenChange={setIsWriting}>
+                            <DialogTrigger asChild>
+                                <Button className="bg-[#0B3D6F] text-white hover:bg-[#092d52] px-8 py-6 rounded-2xl font-bold shadow-lg">
+                                    <MessageSquare className="w-5 h-5 mr-2" />
+                                    {t.property.writeReview}
                                 </Button>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-xl rounded-3xl p-8">
+                                <DialogHeader>
+                                    <DialogTitle className="text-2xl font-extrabold text-[#0B3D6F]">Rate your stay</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-6 py-4">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        {Object.entries(scores).map(([key, value]) => (
+                                            <div key={key} className="space-y-3">
+                                                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{key}</label>
+                                                <div className="flex items-center gap-4">
+                                                    <Slider
+                                                        value={[value]}
+                                                        min={1}
+                                                        max={5}
+                                                        step={1}
+                                                        onValueChange={(val: number[]) => setScores(s => ({ ...s, [key]: val[0] }))}
+                                                    />
+                                                    <span className="font-bold text-[#F17720] w-4 text-center">{value}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Your Experience</label>
+                                        <Textarea
+                                            placeholder="Tell us about your stay..."
+                                            className="min-h-[120px] rounded-2xl bg-slate-50 border-slate-100 focus:ring-[#0B3D6F]"
+                                            value={comment}
+                                            onChange={(e) => setComment(e.target.value)}
+                                        />
+                                    </div>
+                                    <Button
+                                        className="w-full bg-[#F17720] hover:bg-[#d1661b] text-white h-14 rounded-2xl text-lg font-bold"
+                                        onClick={handleSubmit}
+                                        disabled={isSubmitting}
+                                    >
+                                        {isSubmitting ? "Submitting..." : "Post Review"}
+                                    </Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    )}
+                    {!canReview && userId && reviews.some(r => r.user_id === userId) && (
+                        <div className="bg-green-50 text-green-700 px-4 py-3 rounded-2xl text-sm font-medium border border-green-100 flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4" />
+                            Thanks for your review!
+                        </div>
+                    )}
                 </div>
             </div>
 

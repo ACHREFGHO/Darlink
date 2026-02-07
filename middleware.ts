@@ -31,9 +31,15 @@ export async function middleware(request: NextRequest) {
         }
     )
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+    let user = null
+    try {
+        const { data } = await supabase.auth.getUser()
+        user = data.user
+    } catch (err) {
+        console.error('Middleware auth check aborted:', err)
+        // If we can't determine the user due to an abort, we might want to let the request continue 
+        // to avoid infinite redirect loops or aggressive logouts
+    }
 
     // Public routes that don't require authentication
     const publicRoutes = [

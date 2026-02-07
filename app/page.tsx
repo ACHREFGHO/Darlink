@@ -67,11 +67,34 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
     }
   }
 
-  const { data: properties } = await query
+  const { data: properties, error } = await query
+
+  if (error) {
+    console.error('SUPABASE ERROR in Home page:', error)
+  }
+
+  // Fetch and Merge Amenities manually (to avoid PGRST200 Cache Error)
+  let propertiesWithAmenities = properties || []
+  if (properties && properties.length > 0) {
+    const propertyIds = properties.map(p => p.id)
+    const { data: allAmenities } = await supabase
+      .from('property_amenities')
+      .select('*')
+      .in('property_id', propertyIds)
+
+    if (allAmenities) {
+      propertiesWithAmenities = properties.map(p => ({
+        ...p,
+        property_amenities: allAmenities.filter(a => a.property_id === p.id)
+      }))
+    }
+  }
+
+  console.log(`FETCHED ${properties?.length || 0} properties (status: Published)`)
 
   return (
     <HomeClient
-      properties={properties || []}
+      properties={propertiesWithAmenities}
       user={user}
       userRole={userRole}
       favoriteIds={favoriteIds}

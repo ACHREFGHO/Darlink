@@ -162,8 +162,15 @@ create policy "Owners can manage images" on public.property_images for all using
 
 -- 6. STORAGE BUCKET SETUP (Scripts for SQL Editor context)
 -- Note: Buckets often need to be created via Dashboard, but policies can be here
-insert into storage.buckets (id, name, public) values ('property-images', 'property-images', true);
+insert into storage.buckets (id, name, public) 
+values ('property-images', 'property-images', true)
+on conflict (id) do nothing;
 
+insert into storage.buckets (id, name, public) 
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+-- Policies for property-images
 create policy "Authenticated users can upload images"
 on storage.objects for insert
 with check ( bucket_id = 'property-images' and auth.role() = 'authenticated' );
@@ -171,6 +178,19 @@ with check ( bucket_id = 'property-images' and auth.role() = 'authenticated' );
 create policy "Images are publicly accessible"
 on storage.objects for select
 using ( bucket_id = 'property-images' );
+
+-- Policies for avatars
+create policy "Authenticated users can upload avatars"
+on storage.objects for insert
+with check ( bucket_id = 'avatars' and auth.role() = 'authenticated' );
+
+create policy "Users can update their own avatars"
+on storage.objects for update
+using ( bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1] );
+
+create policy "Avatars are publicly accessible"
+on storage.objects for select
+using ( bucket_id = 'avatars' );
 
 
 -- 3. ROOMS TABLE (Updated)

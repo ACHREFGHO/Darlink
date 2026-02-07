@@ -96,18 +96,36 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }, 8000) // 8 seconds timeout
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (session?.user) {
-                setUser(session.user)
-                // Ideally re-fetch profile here too or rely on session
-                // We shouldn't depend on 'profile' state here to avoid loops
-                // Just fetch the profile to be safe ensuring we have the latest role
-                const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-                if (data) setProfile(data as Profile)
-            } else {
-                setUser(null)
-                setProfile(null)
+            console.log("Auth State Change:", event, session?.user?.email || "No User")
+
+            try {
+                if (session?.user) {
+                    setUser(session.user)
+                    // Fetch profile to ensure we have the latest role
+                    const { data, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', session.user.id)
+                        .single()
+
+                    if (data) {
+                        setProfile(data as Profile)
+                    } else if (profileError) {
+                        console.error("Error fetching profile in onAuthStateChange:", profileError)
+                    }
+                } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
+                    setUser(null)
+                    setProfile(null)
+                }
+            } catch (err: any) {
+                if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+                    console.log("Profile fetch aborted during auth change - this is normal during navigation")
+                } else {
+                    console.error("Unexpected error in onAuthStateChange:", err)
+                }
+            } finally {
+                if (mounted) setIsLoading(false)
             }
-            if (mounted) setIsLoading(false)
         })
 
         return () => {

@@ -1,11 +1,14 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Navbar } from '@/components/site/navbar'
 import { MapView } from '@/components/site/map-view'
 import { PropertyCardListing } from '@/components/properties/property-card-listing'
+import { AdvancedFilters, AVAILABLE_AMENITIES, PROPERTY_TYPES } from '@/components/search/advanced-filters'
 import { useLanguage } from '@/components/providers/language-provider'
 import { useCurrency } from '@/components/providers/currency-provider'
+import { SearchResultsSkeleton, PropertyDetailSkeleton } from '@/components/ui/skeleton'
+import { InlineLoader } from '@/components/ui/loading'
 import {
     Search,
     SlidersHorizontal,
@@ -22,7 +25,8 @@ import {
     Wifi,
     Car,
     Wind,
-    Coffee
+    Coffee,
+    Heart
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -62,7 +66,7 @@ const CATEGORIES = [
     { id: 'Guesthouse', label: 'Guesthouses', icon: Tent },
 ]
 
-const AMENITIES = [
+const QUICK_AMENITIES = [
     { id: 'wifi', label: 'Fast Wi-Fi', icon: Wifi },
     { id: 'parking', label: 'Free Parking', icon: Car },
     { id: 'ac', label: 'Air Conditioning', icon: Wind },
@@ -74,15 +78,25 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
     const { formatPrice } = useCurrency()
 
     // States
+    const [isInitializing, setIsInitializing] = useState(true)
+    const [isFilteringLoading, setIsFilteringLoading] = useState(false)
     const [viewMode, setViewMode] = useState<'split' | 'map' | 'list'>('split')
     const [activeCategory, setActiveCategory] = useState('all')
-    const [priceRange, setPriceRange] = useState([0, 2000])
+    const [priceRange, setPriceRange] = useState<[number, number]>([0, 2000])
     const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
+    const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>([])
+    const [checkInDate, setCheckInDate] = useState<Date | null>(null)
+    const [checkOutDate, setCheckOutDate] = useState<Date | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [sortBy, setSortBy] = useState<'recommended' | 'price-asc' | 'price-desc' | 'rating-desc'>('recommended')
     const [mapBounds, _setMapBounds] = useState<{ sw: [number, number], ne: [number, number] } | null>(null)
     const setMapBounds = React.useCallback((bounds: { sw: [number, number], ne: [number, number] } | null) => {
         _setMapBounds(bounds)
+    }, [])
+
+    // Initialize loading state
+    useEffect(() => {
+        setIsInitializing(false)
     }, [])
 
     // Filtering & Sorting Logic
@@ -96,6 +110,11 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
                 if (!hasTypeMatch && !hasSpecMatch) return false
             }
 
+            // Property Type Filter (from advanced filters)
+            if (selectedPropertyTypes.length > 0) {
+                if (!selectedPropertyTypes.includes(p.type)) return false
+            }
+
             // Search Query
             if (searchQuery) {
                 const q = searchQuery.toLowerCase()
@@ -105,10 +124,23 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
                 if (!matchesTitle && !matchesCity && !matchesGov) return false
             }
 
-            // Price Range (roughly checking rooms)
+            // Price Range (checking rooms)
             const prices = p.rooms?.map((r: any) => r.price_per_night) || []
             const minPrice = prices.length > 0 ? Math.min(...prices) : 0
             if (minPrice < priceRange[0] || minPrice > priceRange[1]) return false
+
+            // Amenities Filter - check if property has amenities table
+            if (selectedAmenities.length > 0) {
+                const propertyAmenities = p.property_amenities?.map((a: any) => a.amenity.toLowerCase()) || []
+                const hasAllAmenities = selectedAmenities.every(amenity =>
+                    propertyAmenities.includes(amenity.toLowerCase())
+                )
+                if (!hasAllAmenities) return false
+            }
+
+            // Note: Availability checking with dates is handled client-side
+            // RLS policies prevent fetching bookings from client
+            // For real availability, implement a separate API route if needed
 
             // Map Bounds
             if (viewMode !== 'list' && mapBounds) {
@@ -142,7 +174,7 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
         }
 
         return result
-    }, [properties, activeCategory, searchQuery, priceRange, mapBounds, viewMode, sortBy])
+    }, [properties, activeCategory, selectedPropertyTypes, searchQuery, priceRange, selectedAmenities, checkInDate, checkOutDate, mapBounds, viewMode, sortBy])
 
     // Calculate active region for dynamic header title
     const activeRegion = useMemo(() => {
@@ -158,6 +190,22 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
         return null
     }, [filteredProperties])
 
+    // Calculate total active filters
+    const activeFiltersCount = 
+        selectedAmenities.length +
+        selectedPropertyTypes.length +
+        (priceRange[0] > 0 || priceRange[1] < 2000 ? 1 : 0) +
+        (checkInDate ? 1 : 0) +
+        (checkOutDate ? 1 : 0)
+
+    const handleResetFilters = () => {
+        setPriceRange([0, 2000])
+        setSelectedAmenities([])
+        setSelectedPropertyTypes([])
+        setCheckInDate(null)
+        setCheckOutDate(null)
+    }
+
     return (
         <div className="min-h-screen bg-[#FDFDFD] flex flex-col h-screen overflow-hidden relative">
             {/* Subtle Texture/Grain Overlay */}
@@ -165,8 +213,8 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
 
             <Navbar user={user} userRole={userRole} variant="inner" />
 
-            {/* Filter Sub-header - Ultra Polished & Sticky */}
-            <div className="border-b bg-white/70 backdrop-blur-3xl z-40 px-4 md:px-8 py-4 flex items-center justify-between gap-6 transition-all duration-500">
+            {/* Filter Sub-header - Ultra Polished & Sticky - Desktop */}
+            <div className="hidden md:flex border-b bg-white/70 backdrop-blur-3xl z-40 px-8 py-4 items-center justify-between gap-6 transition-all duration-500">
                 {/* Horizontal Category Scroll with Fade Mask */}
                 <div className="relative flex-1 group/scroll overflow-hidden">
                     <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth">
@@ -196,93 +244,22 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
                 </div>
 
                 {/* Advanced Filters Trigger */}
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" className="rounded-2xl border-gray-200 h-11 px-6 gap-3 font-black text-[11px] uppercase tracking-widest text-slate-600 hover:bg-gray-50 transition-all hover:scale-105 active:scale-95 shadow-sm">
-                            <SlidersHorizontal className="w-4 h-4 text-[#F17720]" />
-                            Filters
-                            <Badge variant="secondary" className="bg-orange-100 text-[#F17720] rounded-lg px-2 h-6 ml-1 font-black text-[10px]">
-                                {selectedAmenities.length + (priceRange[0] > 0 || priceRange[1] < 2000 ? 1 : 0)}
-                            </Badge>
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[450px] rounded-[2.5rem] p-10 border-0 shadow-2xl overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-orange-100/30 rounded-full blur-3xl -mr-10 -mt-10" />
-                        <DialogHeader className="relative">
-                            <DialogTitle className="text-3xl font-black text-[#0B3D6F] tracking-tight">Refine Search</DialogTitle>
-                            <p className="text-slate-400 text-sm font-semibold">Customize your perfect stay in Tunisia</p>
-                        </DialogHeader>
+                <AdvancedFilters
+                    priceRange={priceRange}
+                    onPriceChange={setPriceRange}
+                    selectedAmenities={selectedAmenities}
+                    onAmenitiesChange={setSelectedAmenities}
+                    selectedPropertyTypes={selectedPropertyTypes}
+                    onPropertyTypesChange={setSelectedPropertyTypes}
+                    checkInDate={checkInDate}
+                    checkOutDate={checkOutDate}
+                    onCheckInChange={setCheckInDate}
+                    onCheckOutChange={setCheckOutDate}
+                    maxPrice={2000}
+                    onReset={handleResetFilters}
+                />
 
-                        <div className="py-8 space-y-10 relative">
-                            {/* Price Range */}
-                            <div className="space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-black text-slate-900 uppercase tracking-[0.2em] text-[10px]">Price per night</h3>
-                                    <div className="bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
-                                        <span className="text-sm font-black text-[#F17720]">
-                                            {formatPrice(priceRange[0])} — {formatPrice(priceRange[1])}
-                                        </span>
-                                    </div>
-                                </div>
-                                <Slider
-                                    min={0}
-                                    max={2000}
-                                    step={50}
-                                    value={priceRange}
-                                    onValueChange={setPriceRange}
-                                    className="py-4"
-                                />
-                            </div>
-
-                            {/* Amenities */}
-                            <div className="space-y-6">
-                                <h3 className="font-black text-slate-900 uppercase tracking-[0.2em] text-[10px]">Core Features</h3>
-                                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                                    {AMENITIES.map(amenity => (
-                                        <div key={amenity.id} className="flex items-center space-x-3 group cursor-pointer">
-                                            <Checkbox
-                                                id={amenity.id}
-                                                checked={selectedAmenities.includes(amenity.id)}
-                                                onCheckedChange={(checked: boolean | string) => {
-                                                    if (checked) setSelectedAmenities([...selectedAmenities, amenity.id])
-                                                    else setSelectedAmenities(selectedAmenities.filter(id => id !== amenity.id))
-                                                }}
-                                                className="border-slate-200 data-[state=checked]:bg-[#0B3D6F] data-[state=checked]:border-[#0B3D6F] transition-all"
-                                            />
-                                            <label
-                                                htmlFor={amenity.id}
-                                                className="text-[13px] font-bold text-slate-500 group-hover:text-[#0B3D6F] cursor-pointer flex items-center gap-2.5 transition-colors"
-                                            >
-                                                <amenity.icon className="w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity" />
-                                                {amenity.label}
-                                            </label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        <DialogFooter className="pt-6 border-t border-slate-50 gap-4 flex-row sm:justify-between items-center">
-                            <Button
-                                variant="ghost"
-                                className="font-black text-[11px] uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors"
-                                onClick={() => {
-                                    setPriceRange([0, 2000])
-                                    setSelectedAmenities([])
-                                }}
-                            >
-                                Reset all
-                            </Button>
-                            <Button
-                                className="bg-[#0B3D6F] hover:bg-[#F17720] text-white rounded-2xl px-10 h-14 font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-900/20 active:scale-95"
-                            >
-                                Apply Filters
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                <div className="h-8 w-px bg-gray-100 hidden md:block" />
+                <div className="h-8 w-px bg-gray-100" />
 
                 {/* Tactical View Switcher */}
                 <div className="bg-slate-100/80 p-1.5 rounded-2xl flex gap-1.5 border border-slate-200/50 shadow-inner">
@@ -315,6 +292,39 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
                         </button>
                     ))}
                 </div>
+            </div>
+
+            {/* Mobile Filter Header */}
+            <div className="md:hidden border-b bg-white/95 backdrop-blur-xl z-40 sticky top-[60px] px-4 py-3 flex items-center justify-between gap-2">
+                {/* Category Scroll - Mobile Optimized */}
+                <div className="flex-1 overflow-x-auto no-scrollbar">
+                    <div className="flex gap-2 pb-1">
+                        {CATEGORIES.slice(0, 5).map((cat) => {
+                            const Icon = cat.icon
+                            const isActive = activeCategory === cat.id
+                            return (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setActiveCategory(cat.id)}
+                                    className={cn(
+                                        'flex items-center gap-1.5 px-3 py-2 rounded-full whitespace-nowrap transition-all text-[11px] font-black uppercase tracking-widest flex-shrink-0 active:scale-95',
+                                        isActive
+                                            ? 'bg-[#0B3D6F] text-white'
+                                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                    )}
+                                >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    <span className="hidden xs:inline">{cat.label}</span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+
+                {/* Mobile Filter Button */}
+                <button className="flex-shrink-0 p-2.5 bg-[#F17720] text-white rounded-lg active:scale-95 transition-transform min-h-11 min-w-11 flex items-center justify-center">
+                    <SlidersHorizontal className="w-5 h-5" />
+                </button>
             </div>
 
             {/* Main Content Area - Split View Layout */}
@@ -379,15 +389,19 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
                                     ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                                     : "grid-cols-1 sm:grid-cols-2"
                             )}>
-                                {filteredProperties.map((property, idx) => (
-                                    <PropertyCardListing
-                                        key={property.id}
-                                        property={property}
-                                        index={idx}
-                                        isFavorited={favoriteIds.includes(property.id)}
-                                        userId={user?.id}
-                                    />
-                                ))}
+                                {isInitializing ? (
+                                    <SearchResultsSkeleton count={8} />
+                                ) : (
+                                    filteredProperties.map((property, idx) => (
+                                        <PropertyCardListing
+                                            key={property.id}
+                                            property={property}
+                                            index={idx}
+                                            isFavorited={favoriteIds.includes(property.id)}
+                                            userId={user?.id}
+                                        />
+                                    ))
+                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-[50vh] text-center px-4 relative">
@@ -402,11 +416,7 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
                                 <Button
                                     variant="outline"
                                     className="rounded-2xl border-[#0B3D6F] text-[#0B3D6F] font-black text-[11px] uppercase tracking-widest px-10 h-14 hover:bg-[#0B3D6F] hover:text-white transition-all shadow-lg shadow-blue-900/5 active:scale-95"
-                                    onClick={() => {
-                                        setActiveCategory('all')
-                                        setPriceRange([0, 2000])
-                                        setSelectedAmenities([])
-                                    }}
+                                    onClick={handleResetFilters}
                                 >
                                     Reset all filters
                                 </Button>
@@ -424,6 +434,13 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
                         <MapView
                             properties={properties}
                             onBoundsChange={setMapBounds}
+                            filters={{
+                                priceRange: priceRange,
+                                amenities: selectedAmenities,
+                                propertyTypes: selectedPropertyTypes,
+                                searchQuery: searchQuery
+                            }}
+                            visibleProperties={filteredProperties.length}
                         />
 
                         {/* High-End Map Control Overlay */}
@@ -446,29 +463,29 @@ export function SearchClient({ properties, user, userRole, favoriteIds }: Search
             </div>
 
             {/* Mobile Navigation - Ultra Modern */}
-            <div className="md:hidden border-t bg-white/90 backdrop-blur-2xl px-10 py-6 flex items-center justify-between z-50 rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-                <button className="flex flex-col items-center gap-1.5 text-[#F17720]">
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 z-40 flex items-center justify-between px-4 py-3 safe-bottom">
+                <button className="flex flex-col items-center gap-1 py-2 px-3 flex-1 text-[#F17720] transition-colors active:scale-95">
                     <Search className="w-6 h-6" />
                     <span className="text-[9px] font-black tracking-widest uppercase">Explore</span>
                 </button>
-                <button className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-[#0B3D6F] transition-colors">
+                <button className="flex flex-col items-center gap-1 py-2 px-3 flex-1 text-slate-400 active:text-slate-600 transition-colors active:scale-95">
                     <MapIcon className="w-6 h-6" />
                     <span className="text-[9px] font-black tracking-widest uppercase">Map</span>
                 </button>
-                <div className="w-12 h-12 bg-slate-50 rounded-full border border-slate-100 flex items-center justify-center -mt-12 shadow-xl border-t-0">
-                    <div className="w-8 h-8 rounded-full bg-[#0B3D6F] shadow-lg shadow-blue-900/30 flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                    </div>
-                </div>
-                <button className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-[#0B3D6F] transition-colors">
-                    <Home className="w-6 h-6" />
+                <button className="flex flex-col items-center gap-1 py-2 px-3 flex-1 text-slate-400 active:text-slate-600 transition-colors active:scale-95">
+                    <Heart className="w-6 h-6" />
                     <span className="text-[9px] font-black tracking-widest uppercase">Saved</span>
                 </button>
-                <button className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-[#0B3D6F] transition-colors">
+                <button className="flex flex-col items-center gap-1 py-2 px-3 flex-1 text-slate-400 active:text-slate-600 transition-colors active:scale-95">
                     <Users className="w-6 h-6" />
                     <span className="text-[9px] font-black tracking-widest uppercase">Profile</span>
                 </button>
+                {/* Safe area spacer */}
+                <div style={{ width: 'env(safe-area-inset-right)' }} />
             </div>
+
+            {/* Mobile Results Padding */}
+            <div className="md:hidden h-24" />
         </div>
     )
 }

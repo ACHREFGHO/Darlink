@@ -227,11 +227,19 @@ export function PropertyDetailsClient({
 
                             <span className="hidden sm:inline text-slate-300">|</span>
 
-                            <span className="flex items-center gap-1.5">
-                                <Star className="w-4 h-4 text-[#F17720] fill-[#F17720]" />
-                                <strong>New</strong>
-                                <span className="text-slate-500">(0 reviews)</span>
-                            </span>
+                            {reviews && reviews.length > 0 ? (
+                                <span className="flex items-center gap-1.5 hover:text-[#0B3D6F] cursor-pointer" onClick={() => document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth' })}>
+                                    <Star className="w-4 h-4 text-[#F17720] fill-[#F17720]" />
+                                    <strong>{(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)}</strong>
+                                    <span className="text-slate-500 underline decoration-slate-300">({reviews.length} {t.property.reviews})</span>
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1.5">
+                                    <Star className="w-4 h-4 text-[#F17720] fill-[#F17720]" />
+                                    <strong>New</strong>
+                                    <span className="text-slate-500">(0 reviews)</span>
+                                </span>
+                            )}
 
                             <span className="hidden sm:inline text-slate-300">|</span>
 

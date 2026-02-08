@@ -32,6 +32,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ l
       ),
       ${specSelect} (
         category
+      ),
+      reviews (
+        rating
       )
     `)
     .eq('status', 'Published')

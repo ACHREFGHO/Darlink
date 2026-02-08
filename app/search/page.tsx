@@ -39,6 +39,9 @@ export default async function SearchPage() {
             property_specs (
                 category
             ),
+            property_amenities (
+                amenity
+            ),
             reviews (
                 rating
             )
@@ -47,12 +50,7 @@ export default async function SearchPage() {
         .order('created_at', { ascending: false })
 
     if (error) {
-        console.error('Error fetching properties:', {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code
-        })
+        console.error('Error fetching properties:', error?.message || 'Unknown error')
     }
 
     // Fetch favorites if user is logged in

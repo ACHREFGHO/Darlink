@@ -15,6 +15,8 @@ import { Slider } from "@/components/ui/slider"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { useCurrency } from '@/components/providers/currency-provider'
+import { motion } from 'framer-motion'
+import { GlowingSun, AnimatedWaves, FloatingLeaves } from '@/components/site/ambient-animations'
 
 interface HomeClientProps {
     properties: any[]
@@ -50,7 +52,7 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
         let result = properties
 
         // 1. Map Bounds Filter
-        if (mapBounds && viewMode === 'map') {
+        if (mapBounds) {
             result = result.filter(property => {
                 if (!property.latitude || !property.longitude) return false
                 const isWithinLat = property.latitude >= mapBounds.sw[1] && property.latitude <= mapBounds.ne[1]
@@ -85,10 +87,20 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
             <main className="flex-1">
                 {/* Hero Section */}
                 <section className="relative h-[600px] w-full flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 z-0">
-                        <img
-                            src="/images/beach-house.png"
-                            alt="Background"
+                    <GlowingSun />
+                    <AnimatedWaves />
+
+                    <div className="absolute inset-0 z-0 overflow-hidden">
+                        <motion.img
+                            src="/images/door.jpg"
+                            animate={{
+                                scale: [1, 1.1, 1],
+                            }}
+                            transition={{
+                                duration: 20,
+                                repeat: Infinity,
+                                ease: "linear"
+                            }}
                             className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-[#0B3D6F]/90" />
@@ -116,8 +128,9 @@ export function HomeClient({ properties, user, userRole, favoriteIds }: HomeClie
                 </section>
 
                 {/* Featured Properties Grid */}
-                <section className="bg-gray-50 py-20" id="stays">
-                    <div className="container mx-auto px-4 md:px-6">
+                <section className="bg-gray-50 py-20 relative overflow-hidden" id="stays">
+                    <FloatingLeaves />
+                    <div className="container mx-auto px-4 md:px-6 relative z-10">
                         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
                             <div>
                                 <h2 className="text-3xl md:text-4xl font-bold text-[#0B3D6F]">{t.home.featuredTitle}</h2>

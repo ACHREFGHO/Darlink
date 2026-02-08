@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import Map, { Marker, Popup, NavigationControl, FullscreenControl } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { MapPin, X, Star, Heart } from 'lucide-react'
+import { MapPin, X, Star, Heart, Filter, TrendingDown, Users } from 'lucide-react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,13 @@ interface MapViewProps {
     properties: any[]
     onBoundsChange?: (bounds: { sw: [number, number], ne: [number, number] } | null) => void
     projection?: 'mercator' | 'globe'
+    filters?: {
+        priceRange?: [number, number]
+        amenities?: string[]
+        propertyTypes?: string[]
+        searchQuery?: string
+    }
+    visibleProperties?: number
 }
 
 const TUNISIA_CENTER = {
@@ -21,7 +28,13 @@ const TUNISIA_CENTER = {
     zoom: 5.5 // Better zoomed out for globe
 }
 
-export const MapView = React.memo(function MapView({ properties, onBoundsChange, projection = 'mercator' }: MapViewProps) {
+export const MapView = React.memo(function MapView({ 
+    properties, 
+    onBoundsChange, 
+    projection = 'mercator',
+    filters = {},
+    visibleProperties = 0
+}: MapViewProps) {
     const [popupInfo, setPopupInfo] = useState<any>(null)
     const [hoveredPopup, setHoveredPopup] = useState<any>(null)
     const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -106,6 +119,29 @@ export const MapView = React.memo(function MapView({ properties, onBoundsChange,
 
     return (
         <div className="w-full h-full rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200 border border-white/20 relative group/map bg-slate-100">
+            {/* Filter Indicator Badge */}
+            {Object.values(filters).some(v => v) && (
+                <div className="absolute bottom-6 left-6 z-20 flex items-center gap-2 bg-white/95 backdrop-blur-lg px-4 py-3 rounded-2xl shadow-lg border border-white/50 animate-in fade-in slide-in-from-left-4 duration-500">
+                    <Filter className="w-4 h-4 text-[#F17720]" />
+                    <span className="text-xs font-bold text-slate-700">
+                        {visibleProperties > 0 ? `${visibleProperties} properties` : 'Filtering...'}
+                    </span>
+                </div>
+            )}
+
+            {/* Map Stats */}
+            <div className="absolute bottom-6 right-6 z-20 flex items-center gap-3">
+                {properties.length > visibleProperties && visibleProperties > 0 && (
+                    <div className="bg-white/95 backdrop-blur-lg px-4 py-3 rounded-2xl shadow-lg border border-white/50 text-[11px] font-black text-slate-700 uppercase tracking-widest">
+                        {properties.length - visibleProperties} hidden
+                    </div>
+                )}
+                <div className="bg-[#0B3D6F] text-white px-4 py-3 rounded-2xl shadow-lg text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    {properties.length} total
+                </div>
+            </div>
+
             <Map
                 {...viewState}
                 onMove={handleMove}

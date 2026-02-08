@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/lib/types'
 import { User } from '@supabase/supabase-js'
+import { signOutAction } from '@/app/actions/auth'
 
 interface UserContextType {
     user: User | null
@@ -136,10 +137,29 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }, [supabase])
 
     const signOut = async () => {
-        await supabase.auth.signOut()
-        setUser(null)
-        setProfile(null)
-        window.location.href = '/login'
+        try {
+            // 1. Sign out on the client (Revokes session locally)
+            await supabase.auth.signOut()
+
+            // 2. Clear state immediately
+            setUser(null)
+            setProfile(null)
+
+            // 3. Clear auth-related items from localStorage
+            Object.keys(localStorage).forEach(key => {
+                if (key.includes('supabase.auth.token') || key.includes('-auth-token')) {
+                    localStorage.removeItem(key)
+                }
+            })
+
+            // 4. Trigger Server Action (Clears cookies on server-side)
+            await signOutAction()
+        } catch (error) {
+            console.error('SignOut error, forcing jump to home:', error)
+            // Final fallback: clear everything and redirect manually
+            localStorage.clear()
+            window.location.href = '/'
+        }
     }
 
     return (

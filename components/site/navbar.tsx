@@ -19,6 +19,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/components/providers/language-provider'
 import { useCurrency, Currency } from '@/components/providers/currency-provider'
 import { AuthModal } from '@/components/auth/auth-modal'
+import { useUser } from '@/components/providers/user-provider'
 
 interface NavbarProps {
     user: any
@@ -40,23 +41,27 @@ const currencies: { code: Currency, label: string, symbol: string }[] = [
     { code: 'USD', label: 'US Dollar', symbol: '$' },
 ]
 
-export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarProps) {
-    const [mounted, setMounted] = React.useState(false) // Added mounted state
+export function Navbar({ user: propUser, userRole: propUserRole = 'client', variant = 'home' }: NavbarProps) {
+    const [mounted, setMounted] = useState(false)
     const [scrolled, setScrolled] = useState(false)
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
     const [authView, setAuthView] = useState<'signin' | 'signup'>('signin')
-    const supabase = createClient()
+
+    const { user: contextUser, profile, signOut: contextSignOut } = useUser()
+    const [supabase] = useState(() => createClient())
     const router = useRouter()
     const { language, setLanguage, t } = useLanguage()
     const { currency, setCurrency } = useCurrency()
 
-    // Removed static arrays from here
+    // Deterministic user/role from either prop (SSR) or context (CSR)
+    const currentUser = contextUser || propUser
+    const currentUserRole = profile?.role || propUserRole
 
     const activeLang = languages.find(l => l.code === language) || languages[0]
     const activeCurrency = currencies.find(c => c.code === currency) || currencies[0]
 
     useEffect(() => {
-        setMounted(true) // Set mounted to true after initial render
+        setMounted(true)
         const handleScroll = () => {
             setScrolled(window.scrollY > 20)
         }
@@ -65,16 +70,14 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
     }, [])
 
     const handleLogout = async () => {
-        await supabase.auth.signOut()
-        router.refresh()
-        router.push('/')
+        await contextSignOut()
     }
 
     // Determine branding colors based on scroll state and variant
     const isTransparent = variant === 'home' && !scrolled
     const logoClass = cn(
         "h-full w-auto object-contain transition-all duration-300",
-        isTransparent ? "brightness-0 invert" : ""
+        isTransparent ? "brightness-0 invert group-hover:brightness-100 group-hover:invert-0" : ""
     )
 
     return (
@@ -99,25 +102,25 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                     <div className="hidden sm:flex flex-col justify-center -space-y-1">
                         <div className="leading-none flex items-baseline">
                             <span className={cn(
-                                "font-bold text-2xl tracking-tight text-[#0B3D6F]",
-                                isTransparent ? "text-white" : ""
+                                "font-bold text-2xl tracking-tight text-[#0B3D6F] transition-colors duration-300",
+                                isTransparent ? "text-white group-hover:text-[#0B3D6F]" : ""
                             )}>
                                 DAR
                             </span>
                             <span className={cn(
-                                "font-bold text-2xl tracking-tight text-[#F17720]",
-                                isTransparent ? "text-white/90" : ""
+                                "font-bold text-2xl tracking-tight text-[#F17720] transition-colors duration-300",
+                                isTransparent ? "text-white/90 group-hover:text-[#F17720]" : ""
                             )}>
                                 LINK
                             </span>
                             <span className={cn(
-                                "text-sm font-semibold ml-0.5 opacity-70",
-                                isTransparent ? "text-white" : "text-[#0B3D6F]"
+                                "text-sm font-semibold ml-0.5 opacity-70 transition-colors duration-300",
+                                isTransparent ? "text-white group-hover:text-[#0B3D6F]" : "text-[#0B3D6F]"
                             )}>.tn</span>
                         </div>
                         <span className={cn(
-                            "text-[11px] uppercase tracking-[0.15em] font-semibold opacity-90 hidden lg:block mt-0.5",
-                            isTransparent ? "text-blue-100" : "text-slate-500"
+                            "text-[11px] uppercase tracking-[0.15em] font-semibold opacity-90 hidden lg:block mt-0.5 transition-colors duration-300",
+                            isTransparent ? "text-blue-100 group-hover:text-slate-500" : "text-slate-500"
                         )}>
                             Authentic Tunisian Stays
                         </span>
@@ -136,7 +139,7 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                     </div>
 
                     {/* Mode Switcher / Host Call to Action */}
-                    {!user ? (
+                    {!currentUser ? (
                         <Link
                             href="/owner/properties/new"
                             className={cn(
@@ -146,7 +149,7 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                         >
                             {t.navbar.becomeHost}
                         </Link>
-                    ) : (userRole === 'house_owner' || userRole === 'admin') && (
+                    ) : (currentUserRole === 'house_owner' || currentUserRole === 'admin') && (
                         <Link
                             href="/owner/dashboard"
                             className={cn(
@@ -230,15 +233,15 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                                 )}>
                                     <Menu className="w-4 h-4 md:w-5 md:h-5" />
                                     <Avatar className="w-7 h-7 md:w-8 md:h-8 border border-white/10">
-                                        <AvatarImage src={user?.user_metadata?.avatar_url} />
+                                        <AvatarImage src={currentUser?.user_metadata?.avatar_url} />
                                         <AvatarFallback className="bg-gray-500 text-white text-[10px] md:text-xs">
-                                            {user ? user.email?.[0].toUpperCase() : <User className="w-3 h-3 md:w-4 md:h-4" />}
+                                            {currentUser ? currentUser.email?.[0].toUpperCase() : <User className="w-3 h-3 md:w-4 md:h-4" />}
                                         </AvatarFallback>
                                     </Avatar>
                                 </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-64 p-2 rounded-xl shadow-xl border-gray-100 mt-2 bg-white">
-                                {!user ? (
+                                {!currentUser ? (
                                     <>
                                         <DropdownMenuItem className="font-bold py-3 cursor-pointer" onClick={() => { setAuthView('signin'); setIsAuthModalOpen(true) }}>
                                             {t.navbar.login}
@@ -258,8 +261,8 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                                     <>
                                         <DropdownMenuLabel className="font-normal">
                                             <div className="flex flex-col space-y-1">
-                                                <p className="text-sm font-medium leading-none">{user.user_metadata?.full_name || 'User'}</p>
-                                                <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                                                <p className="text-sm font-medium leading-none">{currentUser.user_metadata?.full_name || 'User'}</p>
+                                                <p className="text-xs leading-none text-muted-foreground">{currentUser.email}</p>
                                             </div>
                                         </DropdownMenuLabel>
                                         <DropdownMenuSeparator />
@@ -277,7 +280,7 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                                         <DropdownMenuSeparator />
 
                                         {/* Owner Actions */}
-                                        {(userRole === 'house_owner' || userRole === 'admin') && (
+                                        {(currentUserRole === 'house_owner' || currentUserRole === 'admin') && (
                                             <>
                                                 <DropdownMenuItem className="py-2.5 cursor-pointer" onClick={() => router.push('/owner/dashboard')}>
                                                     <LayoutDashboard className="w-4 h-4 mr-2" />
@@ -288,7 +291,7 @@ export function Navbar({ user, userRole = 'client', variant = 'home' }: NavbarPr
                                         )}
 
                                         {/* Admin Actions */}
-                                        {userRole === 'admin' && (
+                                        {currentUserRole === 'admin' && (
                                             <>
                                                 <DropdownMenuItem className="py-2.5 cursor-pointer font-semibold text-[#B88746]" onClick={() => router.push('/admin/dashboard')}>
                                                     {t.navbar.adminPortal}
